@@ -23,7 +23,8 @@
 <link href="../pkgdown.css" rel="stylesheet">
 <script src="../jquery.sticky-kit.min.js"></script>
 <script src="../pkgdown.js"></script>
-
+  
+  
 <!-- mathjax -->
 <script src='https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML'></script>
 
@@ -55,6 +56,9 @@
 </li>
 <li>
   <a href="../articles/wflow-01-getting-started.html">Getting started</a>
+</li>
+<li>
+  <a href="../articles/wflow-05-faq.html">FAQ</a>
 </li>
 <li>
   <a href="../articles/index.html">Vignettes</a>
@@ -91,14 +95,15 @@
     
     <p><code>wflow_publish</code> is the main workflowr function. Use it when you are
 ready to publish an analysis to your site. <code>wflow_publish</code> performs
-three steps: 1) commit the file(s), 2) rebuild the file(s), 3) commit the
+three steps: 1) commit the file(s) (can include both Rmd and non-Rmd files,
+e.g. <code>_site.yml</code>), 2) rebuild the R Markdown file(s), 3) commit the
 generated website file(s). These steps ensure that the version of the HTML
 file is created by the latest version of the R Markdown file, which is
 critical for reproducibility.</p>
     
 
     <pre class="usage"><span class='fu'>wflow_publish</span>(<span class='kw'>files</span> <span class='kw'>=</span> <span class='kw'>NULL</span>, <span class='kw'>message</span> <span class='kw'>=</span> <span class='kw'>NULL</span>, <span class='kw'>all</span> <span class='kw'>=</span> <span class='fl'>FALSE</span>, <span class='kw'>force</span> <span class='kw'>=</span> <span class='fl'>FALSE</span>,
-  <span class='kw'>update</span> <span class='kw'>=</span> <span class='fl'>FALSE</span>, <span class='kw'>republish</span> <span class='kw'>=</span> <span class='fl'>FALSE</span>, <span class='kw'>view</span> <span class='kw'>=</span> <span class='fl'>FALSE</span>, <span class='kw'>seed</span> <span class='kw'>=</span> <span class='fl'>12345</span>,
+  <span class='kw'>update</span> <span class='kw'>=</span> <span class='fl'>FALSE</span>, <span class='kw'>republish</span> <span class='kw'>=</span> <span class='fl'>FALSE</span>, <span class='kw'>view</span> <span class='kw'>=</span> <span class='fu'>interactive</span>(), <span class='kw'>seed</span> <span class='kw'>=</span> <span class='fl'>12345</span>,
   <span class='kw'>dry_run</span> <span class='kw'>=</span> <span class='fl'>FALSE</span>, <span class='kw'>project</span> <span class='kw'>=</span> <span class='st'>"."</span>)</pre>
     
     <h2 class="hasAnchor" id="arguments"><a class="anchor" href="#arguments"></a> Arguments</h2>
@@ -106,8 +111,11 @@ critical for reproducibility.</p>
     <colgroup><col class="name" /><col class="desc" /></colgroup>
     <tr>
       <th>files</th>
-      <td><p>character (default: NULL). Files to be added and committed with
-Git.</p></td>
+      <td><p>character (default: NULL). R Markdown files and other files to
+be added and committed with Git (step 1). Any R Markdown files will also be
+built (step 2) and their output HTML and figures will be subsequently
+committed (step 3). Supports file
+<a href = 'https://en.wikipedia.org/wiki/Glob_(programming)'>globbing</a>.</p></td>
     </tr>
     <tr>
       <th>message</th>
@@ -125,7 +133,7 @@ Equivalent to: <code>git add -f</code></p></td>
     </tr>
     <tr>
       <th>update</th>
-      <td><p>logical (default: FALSE). Build the files that have been
+      <td><p>logical (default: FALSE). Build any files that have been
 committed more recently than their corresponding HTML files (and do not
 have any unstaged or staged changes). This ensures that the commit version
 ID inserted into the HTML corresponds to the exact version of the source
@@ -134,18 +142,24 @@ file that was used to produce it.</p></td>
     <tr>
       <th>republish</th>
       <td><p>logical (default: FALSE). Build all published R Markdown
-files. Useful for site-wide changes like updating the theme, navigation
-bar, or any other setting in <code>_site.yml</code>.</p></td>
+files (that do not have any unstaged or staged changes). Useful for
+site-wide changes like updating the theme, navigation bar, or any other
+setting in <code>_site.yml</code>.</p></td>
     </tr>
     <tr>
       <th>view</th>
-      <td><p>logical (default: FALSE). View the website after publishing
-files. See <code><a href='wflow_build.html'>wflow_build</a></code> for more details.</p></td>
+      <td><p>logical (default: <code>interactive</code>). View the website
+with <code><a href='wflow_view.html'>wflow_view</a></code> after building files. If only one file is
+built, it is opened. If more than one file is built, the main index page is
+opened. Not applicable if no files are built or if <code>dry_run = TRUE</code>.</p></td>
     </tr>
     <tr>
       <th>seed</th>
       <td><p>numeric (default: 12345). The seed to set before building each
-file. Passed to <code>set.seed</code>.</p></td>
+file. Passed to <code>set.seed</code>. <b>DEPRECATED:</b> The seed set
+here has no effect if you are using <code><a href='wflow_html.html'>wflow_html</a></code> as the output
+format defined in <code>_site.yml</code>. This argument is for backwards
+compatibility with previous versions of workflowr.</p></td>
     </tr>
     <tr>
       <th>dry_run</th>
@@ -165,18 +179,18 @@ you'll need to provide the path to the project directory.</p></td>
     <p>Returns an object of class <code>wflow_publish</code>, which is a list with
   the following elements:</p>
 <p></p><ul>
-<li><p><b>step1</b>: An object of class <code>wflow_commit</code> from the first
-  step of committing the analysis files.</p></li>
+<li><p><b>step1</b>: An object of class <code>wflow_git_commit</code> from the first
+  step of committing the files.</p></li>
 <li><p><b>step2</b>: An object of class <code>wflow_build</code> from the second
   step of building the HTML files.</p></li>
-<li><p><b>step3</b>: An object of class <code>wflow_commit</code> from the third
+<li><p><b>step3</b>: An object of class <code>wflow_git_commit</code> from the third
   step of committing the HTML files.</p></li>
 </ul>
 
     
     <h2 class="hasAnchor" id="see-also"><a class="anchor" href="#see-also"></a>See also</h2>
 
-    <p><code><a href='wflow_commit.html'>wflow_commit</a></code>, <code><a href='wflow_build.html'>wflow_build</a></code></p>
+    <p><code><a href='wflow_git_commit.html'>wflow_git_commit</a></code>, <code><a href='wflow_build.html'>wflow_build</a></code></p>
     
 
     <h2 class="hasAnchor" id="examples"><a class="anchor" href="#examples"></a>Examples</h2>
@@ -191,12 +205,16 @@ you'll need to provide the path to the project directory.</p></td>
   <span class='fu'>wflow_publish</span>(<span class='fu'>c</span>(<span class='st'>"analysis/file.Rmd"</span>, <span class='st'>"analysis/another.Rmd"</span>),
                 <span class='st'>"Informative commit message"</span>)
   <span class='co'># All R Markdown files that start with the pattern "new_"</span>
-  <span class='fu'>wflow_publish</span>(<span class='fu'>Sys.glob</span>(<span class='st'>"analysis/new_*Rmd"</span>), <span class='st'>"Informative commit message"</span>)
-  <span class='co'># Republish all published files regardless of whether they have been</span>
-  <span class='co'># modified. Useful for changing some universal aspect of the site,</span>
-  <span class='co'># e.g. the theme.</span>
-  <span class='fu'>wflow_publish</span>(<span class='kw'>republish</span> <span class='kw'>=</span> <span class='fl'>TRUE</span>, <span class='kw'>message</span> <span class='kw'>=</span> <span class='st'>"Informative commit message"</span>)
-
+  <span class='fu'>wflow_publish</span>(<span class='st'>"analysis/new_*Rmd"</span>, <span class='st'>"Informative commit message"</span>)
+  <span class='co'># Republish all published files even though they haven't been modified.</span>
+  <span class='co'># Useful for changing some universal aspect of the site, e.g. the theme</span>
+  <span class='co'># specified in _site.yml.</span>
+  <span class='fu'>wflow_publish</span>(<span class='st'>"analysis/_site.yml"</span>, <span class='st'>"Informative commit message"</span>,
+                <span class='kw'>republish</span> <span class='kw'>=</span> <span class='fl'>TRUE</span>)
+  <span class='co'># Publish all previously published files that have been committed more</span>
+  <span class='co'># recently than their corresponding HTML files. This is useful if you like to</span>
+  <span class='co'># manually commit your R Markdown files.</span>
+  <span class='fu'>wflow_publish</span>(<span class='kw'>update</span> <span class='kw'>=</span> <span class='fl'>TRUE</span>)
 })</div></pre>
   </div>
   <div class="col-md-3 hidden-xs hidden-sm" id="sidebar">

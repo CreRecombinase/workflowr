@@ -1,4 +1,4 @@
-#' Report status of workflowr project.
+#' Report status of workflowr project
 #'
 #' \code{wflow_status} reports the analysis files that require user action.
 #'
@@ -21,7 +21,8 @@
 #' \code{wflow_status} only works for workflowr projects that use Git.
 #'
 #' @param files character (default: NULL) The analysis file(s) to report the
-#'   status. By default checks the status of all analysis files.
+#'   status. By default checks the status of all analysis files. Supports
+#'   file \href{https://en.wikipedia.org/wiki/Glob_(programming)}{globbing}.
 #' @param project character (default: ".") By default the function assumes the
 #'   current working directory is within the project. If this is not true,
 #'   you'll need to provide the path to the project directory.
@@ -94,32 +95,40 @@
 #' }
 #' @export
 wflow_status <- function(files = NULL, project = ".") {
-  if (!(is.null(files) | is.character(files)))
-      stop("files must be NULL or a character vector")
-  if (!is.character(project) | length(project) != 1)
+
+  if (!is.null(files)) {
+    if (!(is.character(files) && length(files) > 0))
+      stop("files must be NULL or a character vector of filenames")
+    if (any(dir.exists(files)))
+      stop("files cannot include a path to a directory")
+    files <- glob(files)
+    if (!all(file.exists(files)))
+      stop("Not all files exist. Check the paths to the files")
+    # Change filepaths to relative paths
+    files <- relative(files)
+    # Check for valid file extensions
+    ext <- tools::file_ext(files)
+    ext_wrong <- !(ext %in% c("Rmd", "rmd"))
+    if (any(ext_wrong))
+      stop(wrap("File extensions must be either Rmd or rmd."))
+  }
+
+  if (!(is.character(project) && length(project) == 1))
     stop("project must be a one element character vector")
   if (!dir.exists(project))
     stop("project does not exist.")
-
-  # Ensure Windows paths use forward slashes
-  files <- convert_windows_paths(files)
-  project <- convert_windows_paths(project)
+  project <- absolute(project)
 
   # Obtain list of workflowr paths. Throw error if no Git repository.
   o <- wflow_paths(error_git = TRUE, project = project)
 
   # Gather analysis files
   # (files that start with an underscore are ignored)
-  files_all <- list.files(path = o$analysis, pattern = "^[^_]")
-  if (o$analysis != ".")
-    files_all <- file.path(o$analysis, files_all)
-  files_all_ext <- tools::file_ext(files_all)
-  files_analysis <- files_all[files_all_ext %in% c("Rmd", "rmd")]
+  files_analysis <- list.files(path = o$analysis, pattern = "^[^_].+[Rr]md$",
+                          full.names = TRUE)
+  files_analysis <- relative(files_analysis)
 
   if (!is.null(files)) {
-    # Don't know if file paths are relative or absolute, so ensure they are
-    # relative
-    files <- relpath_vec(files)
     files_analysis <- files_analysis[match(files, files_analysis)]
   }
   if (length(files_analysis) == 0)
@@ -132,7 +141,7 @@ wflow_status <- function(files = NULL, project = ".") {
   # list of character vectors of absolute paths
   s <- lapply(s, function(x) paste0(git2r::workdir(r), as.character(x)))
   # Convert from absolute paths to paths relative to working directory
-  s <- lapply(s, relpath_vec)
+  s <- lapply(s, relative)
   # Determine status of each analysis file in the Git repository. Each status
   # is a logical vector.
   ignored <- files_analysis %in% s$ignored
@@ -141,15 +150,15 @@ wflow_status <- function(files = NULL, project = ".") {
   tracked <- files_analysis %in% setdiff(files_analysis,
                                          c(s$untracked, s$ignored))
   files_committed <- paste0(git2r::workdir(r), get_committed_files(r))
-  files_committed <- relpath_vec(files_committed)
+  files_committed <- relative(files_committed)
   committed <- files_analysis %in% files_committed
   files_html <- to_html(files_analysis, outdir = o$docs)
   published <- files_html %in% files_committed
   # Do published files have subsequently committed changes?
   files_outdated <- get_outdated_files(r,
-                                       normalizePath(files_analysis[published]),
-                                       outdir = normalizePath(o$docs))
-  files_outdated <- relpath_vec(files_outdated)
+                                       absolute(files_analysis[published]),
+                                       outdir = absolute(o$docs))
+  files_outdated <- relative(files_outdated)
   mod_committed <- files_analysis %in% files_outdated
 
   # Highlevel designations
@@ -219,7 +228,7 @@ print.wflow_status <- function(x, ...) {
 
 To publish your changes as part of your website, use `wflow_publish()`.
 
-To commit your changes without publishing them yet, use `wflow_commit()`.",
+To commit your changes without publishing them yet, use `wflow_git_commit()`.",
     paste(key, collapse = ", "))
     cat("\n")
     cat(wrap(m))

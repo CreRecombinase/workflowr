@@ -5,12 +5,15 @@
 \title{Publish the site}
 \usage{
 wflow_publish(files = NULL, message = NULL, all = FALSE, force = FALSE,
-  update = FALSE, republish = FALSE, view = FALSE, seed = 12345,
+  update = FALSE, republish = FALSE, view = interactive(), seed = 12345,
   dry_run = FALSE, project = ".")
 }
 \arguments{
-\item{files}{character (default: NULL). Files to be added and committed with
-Git.}
+\item{files}{character (default: NULL). R Markdown files and other files to
+be added and committed with Git (step 1). Any R Markdown files will also be
+built (step 2) and their output HTML and figures will be subsequently
+committed (step 3). Supports file
+\href{https://en.wikipedia.org/wiki/Glob_(programming)}{globbing}.}
 
 \item{message}{character (default: NULL). A commit message.}
 
@@ -20,21 +23,27 @@ modified and deleted. Equivalent to: \code{git commit -a}}
 \item{force}{logical (default: FALSE). Allow adding otherwise ignored files.
 Equivalent to: \code{git add -f}}
 
-\item{update}{logical (default: FALSE). Build the files that have been
+\item{update}{logical (default: FALSE). Build any files that have been
 committed more recently than their corresponding HTML files (and do not
 have any unstaged or staged changes). This ensures that the commit version
 ID inserted into the HTML corresponds to the exact version of the source
 file that was used to produce it.}
 
 \item{republish}{logical (default: FALSE). Build all published R Markdown
-files. Useful for site-wide changes like updating the theme, navigation
-bar, or any other setting in \code{_site.yml}.}
+files (that do not have any unstaged or staged changes). Useful for
+site-wide changes like updating the theme, navigation bar, or any other
+setting in \code{_site.yml}.}
 
-\item{view}{logical (default: FALSE). View the website after publishing
-files. See \code{\link{wflow_build}} for more details.}
+\item{view}{logical (default: \code{\link{interactive}}). View the website
+with \code{\link{wflow_view}} after building files. If only one file is
+built, it is opened. If more than one file is built, the main index page is
+opened. Not applicable if no files are built or if \code{dry_run = TRUE}.}
 
 \item{seed}{numeric (default: 12345). The seed to set before building each
-file. Passed to \code{\link{set.seed}}.}
+file. Passed to \code{\link{set.seed}}. \bold{DEPRECATED:} The seed set
+here has no effect if you are using \code{\link{wflow_html}} as the output
+format defined in \code{_site.yml}. This argument is for backwards
+compatibility with previous versions of workflowr.}
 
 \item{dry_run}{logical (default: FALSE). Preview the proposed action but do
 not actually add or commit any files.}
@@ -49,13 +58,13 @@ Returns an object of class \code{wflow_publish}, which is a list with
 
   \itemize{
 
-  \item \bold{step1}: An object of class \code{wflow_commit} from the first
-  step of committing the analysis files.
+  \item \bold{step1}: An object of class \code{wflow_git_commit} from the first
+  step of committing the files.
 
   \item \bold{step2}: An object of class \code{wflow_build} from the second
   step of building the HTML files.
 
-  \item \bold{step3}: An object of class \code{wflow_commit} from the third
+  \item \bold{step3}: An object of class \code{wflow_git_commit} from the third
   step of committing the HTML files.
 
   }
@@ -63,7 +72,8 @@ Returns an object of class \code{wflow_publish}, which is a list with
 \description{
 \code{wflow_publish} is the main workflowr function. Use it when you are
 ready to publish an analysis to your site. \code{wflow_publish} performs
-three steps: 1) commit the file(s), 2) rebuild the file(s), 3) commit the
+three steps: 1) commit the file(s) (can include both Rmd and non-Rmd files,
+e.g. \code{_site.yml}), 2) rebuild the R Markdown file(s), 3) commit the
 generated website file(s). These steps ensure that the version of the HTML
 file is created by the latest version of the R Markdown file, which is
 critical for reproducibility.
@@ -80,15 +90,19 @@ wflow_publish("analysis/file.Rmd", "Informative commit message", all = TRUE)
 wflow_publish(c("analysis/file.Rmd", "analysis/another.Rmd"),
               "Informative commit message")
 # All R Markdown files that start with the pattern "new_"
-wflow_publish(Sys.glob("analysis/new_*Rmd"), "Informative commit message")
-# Republish all published files regardless of whether they have been
-# modified. Useful for changing some universal aspect of the site,
-# e.g. the theme.
-wflow_publish(republish = TRUE, message = "Informative commit message")
-
+wflow_publish("analysis/new_*Rmd", "Informative commit message")
+# Republish all published files even though they haven't been modified.
+# Useful for changing some universal aspect of the site, e.g. the theme
+# specified in _site.yml.
+wflow_publish("analysis/_site.yml", "Informative commit message",
+              republish = TRUE)
+# Publish all previously published files that have been committed more
+# recently than their corresponding HTML files. This is useful if you like to
+# manually commit your R Markdown files.
+wflow_publish(update = TRUE)
 }
 
 }
 \seealso{
-\code{\link{wflow_commit}}, \code{\link{wflow_build}}
+\code{\link{wflow_git_commit}}, \code{\link{wflow_build}}
 }

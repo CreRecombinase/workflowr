@@ -23,7 +23,8 @@
 <link href="../pkgdown.css" rel="stylesheet">
 <script src="../jquery.sticky-kit.min.js"></script>
 <script src="../pkgdown.js"></script>
-
+  
+  
 <!-- mathjax -->
 <script src='https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML'></script>
 
@@ -55,6 +56,9 @@
 </li>
 <li>
   <a href="../articles/wflow-01-getting-started.html">Getting started</a>
+</li>
+<li>
+  <a href="../articles/wflow-05-faq.html">FAQ</a>
 </li>
 <li>
   <a href="../articles/index.html">Vignettes</a>
@@ -104,22 +108,23 @@ the changes. When you are ready to commit the files, use
     <colgroup><col class="name" /><col class="desc" /></colgroup>
     <tr>
       <th>files</th>
-      <td><p>character (default: NULL). Files to build. Supports file
-extensions Rmd and rmd. Only files in the analysis directory are allowed
-(and therefore any path to a file is ignored). If <code>files</code> is
+      <td><p>character (default: NULL). Files to build. Only allows files in
+the analysis directory with the extension Rmd or rmd. If <code>files</code> is
 <code>NULL</code>, the default behavior is to build all outdated files (see
-argument <code>make</code> below).</p></td>
+argument <code>make</code> below). Supports file
+<a href = 'https://en.wikipedia.org/wiki/Glob_(programming)'>globbing</a>.</p></td>
     </tr>
     <tr>
       <th>make</th>
       <td><p>logical (default: <code>is.null(files)</code>). When <code>make =
-TRUE</code>, use Make-like behavior, i.e. build the files that have been updated
-more recently than their corresponding HTML files. This is the default
+TRUE</code>, build any files that have been modified more recently than their
+corresponding HTML files (inspired by
+<a href = 'https://www.gnu.org/software/make/'>GNU Make</a>). This is the default
 action if no files are specified.</p></td>
     </tr>
     <tr>
       <th>update</th>
-      <td><p>logical (default: FALSE). Build the files that have been
+      <td><p>logical (default: FALSE). Build any files that have been
 committed more recently than their corresponding HTML files (and do not
 have any unstaged or staged changes). This ensures that the commit version
 ID inserted into the HTML corresponds to the exact version of the source
@@ -128,26 +133,31 @@ file that was used to produce it.</p></td>
     <tr>
       <th>republish</th>
       <td><p>logical (default: FALSE). Build all published R Markdown
-files. Useful for site-wide changes like updating the theme, navigation
-bar, or any other setting in <code>_site.yml</code>.</p></td>
+files (that do not have any unstaged or staged changes). Useful for
+site-wide changes like updating the theme, navigation bar, or any other
+setting in <code>_site.yml</code>.</p></td>
     </tr>
     <tr>
       <th>view</th>
       <td><p>logical (default: <code>interactive</code>). View the website
-after building files. If only one file is built, it is opened. If more than
-one file is built, the main index page is opened. Not applicable if no
-files are built or if <code>dry_run = TRUE</code>.</p></td>
+with <code><a href='wflow_view.html'>wflow_view</a></code> after building files. If only one file is
+built, it is opened. If more than one file is built, the main index page is
+opened. Not applicable if no files are built or if <code>dry_run = TRUE</code>.</p></td>
     </tr>
     <tr>
       <th>seed</th>
       <td><p>numeric (default: 12345). The seed to set before building each
-file. Passed to <code>set.seed</code>.</p></td>
+file. Passed to <code>set.seed</code>. <b>DEPRECATED:</b> The seed set
+here has no effect if you are using <code><a href='wflow_html.html'>wflow_html</a></code> as the output
+format defined in <code>_site.yml</code>. This argument is for backwards
+compatibility with previous versions of workflowr.</p></td>
     </tr>
     <tr>
       <th>log_dir</th>
       <td><p>character (default: NULL). The directory to save log files
 from building files. It will be created if necessary and ignored if
-<code>local = TRUE</code>. The default is to create a directory in <code>/tmp</code>.</p></td>
+<code>local = TRUE</code>. The default is to use a directory named
+<code>workflowr</code> in <code>tempdir</code>.</p></td>
     </tr>
     <tr>
       <th>local</th>
@@ -191,14 +201,22 @@ you'll need to provide the path to the project directory.</p></td>
     <h2 class="hasAnchor" id="details"><a class="anchor" href="#details"></a>Details</h2>
 
     <p><code>wflow_build</code> has multiple, non-mutually exclusive options for deciding
-which files to build:</p><ul>
+which files to build. In other words, if multiple options are set to
+<code>TRUE</code>, the union of all files will be built. The argument <code>make</code>
+is the most useful for interactively performing your analysis. The other
+options are more useful when you are ready to publish specific files with
+<code><a href='wflow_publish.html'>wflow_publish</a></code> (which passes these arguments to
+<code>wflow_build</code>).</p><ul>
 <li><p>Files specified via the argument <code>files</code> are always built.</p></li>
 <li><p>If <code>make = TRUE</code>, all files which have been modified more recently
 than their corresponding HTML files will be built.</p></li>
-<li><p>If <code>update = TRUE</code>, all files which have been committed more
-recently than their corresponding HTML files will be built. However, files
-which currently have staged or unstaged changes will be ignored.</p></li>
-<li><p>If <code>republish = TRUE</code>, all published files will be rebuilt.</p></li>
+<li><p>If <code>update = TRUE</code>, all previously published files which have been
+committed more recently than their corresponding HTML files will be built.
+However, files which currently have staged or unstaged changes will be
+ignored.</p></li>
+<li><p>If <code>republish = TRUE</code>, all published files will be rebuilt.
+However, files which currently have staged or unstaged changes will be
+ignored.</p></li>
 </ul>
     <p>Under the hood, <code>wflow_build</code> is a wrapper for
 <code><a href='http://www.rdocumentation.org/packages/rmarkdown/topics/render_site'>render_site</a></code> from the package rmarkdown.</p>
@@ -211,14 +229,18 @@ which currently have staged or unstaged changes will be ignored.</p></li>
     <h2 class="hasAnchor" id="examples"><a class="anchor" href="#examples"></a>Examples</h2>
     <pre class="examples"><div class='input'><span class='fu'>not_run</span>({
 
-  <span class='co'># Build all files</span>
+  <span class='co'># Build any files which have modified</span>
   <span class='fu'>wflow_build</span>() <span class='co'># equivalent to wflow_build(make = TRUE)</span>
   <span class='co'># Build a single file</span>
   <span class='fu'>wflow_build</span>(<span class='st'>"file.Rmd"</span>)
   <span class='co'># Build multiple files</span>
   <span class='fu'>wflow_build</span>(<span class='fu'>c</span>(<span class='st'>"file1.Rmd"</span>, <span class='st'>"file2.Rmd"</span>))
-  <span class='co'># Build every file</span>
+  <span class='co'># Build multiple files using a file glob</span>
+  <span class='fu'>wflow_build</span>(<span class='st'>"file*.Rmd"</span>)
+  <span class='co'># Build every published file</span>
   <span class='fu'>wflow_build</span>(<span class='kw'>republish</span> <span class='kw'>=</span> <span class='fl'>TRUE</span>)
+  <span class='co'># Build file.Rmd and any files which have been modified</span>
+  <span class='fu'>wflow_build</span>(<span class='st'>"file.Rmd"</span>, <span class='kw'>make</span> <span class='kw'>=</span> <span class='fl'>TRUE</span>)
 })</div></pre>
   </div>
   <div class="col-md-3 hidden-xs hidden-sm" id="sidebar">

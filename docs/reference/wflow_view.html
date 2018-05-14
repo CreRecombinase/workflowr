@@ -6,7 +6,7 @@
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>View research website locally. — wflow_view • workflowr</title>
+<title>View research website locally — wflow_view • workflowr</title>
 
 <!-- jquery -->
 <script src="https://code.jquery.com/jquery-3.1.0.min.js" integrity="sha384-nrOSfDHtoPMzJHjVTdCopGqIqeYETSXhZDFyniQ8ZHcVy08QesyHcnOUpMpqnmWq" crossorigin="anonymous"></script>
@@ -23,7 +23,8 @@
 <link href="../pkgdown.css" rel="stylesheet">
 <script src="../jquery.sticky-kit.min.js"></script>
 <script src="../pkgdown.js"></script>
-
+  
+  
 <!-- mathjax -->
 <script src='https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML'></script>
 
@@ -57,6 +58,9 @@
   <a href="../articles/wflow-01-getting-started.html">Getting started</a>
 </li>
 <li>
+  <a href="../articles/wflow-05-faq.html">FAQ</a>
+</li>
+<li>
   <a href="../articles/index.html">Vignettes</a>
 </li>
 <li>
@@ -85,11 +89,12 @@
       <div class="row">
   <div class="col-md-9 contents">
     <div class="page-header">
-    <h1>View research website locally.</h1>
+    <h1>View research website locally</h1>
     </div>
 
     
-    <p><code>wflow_view</code> displays the website locally in your browser.</p>
+    <p><code>wflow_view</code> displays the website locally in your browser or the RStudio
+Viewer pane.</p>
     
 
     <pre class="usage"><span class='fu'>wflow_view</span>(<span class='kw'>files</span> <span class='kw'>=</span> <span class='kw'>NULL</span>, <span class='kw'>recent</span> <span class='kw'>=</span> <span class='fl'>FALSE</span>, <span class='kw'>dry_run</span> <span class='kw'>=</span> <span class='fl'>FALSE</span>, <span class='kw'>project</span> <span class='kw'>=</span> <span class='st'>"."</span>)</pre>
@@ -100,21 +105,22 @@
     <tr>
       <th>files</th>
       <td><p>character (default: NULL). Name(s) of the specific file(s) to
-open in the browser. These can be either the name(s) of the R Markdown
-file(s) in the analysis directory or the HTML file(s) in the docs
-directory. Also, the full path(s) to the file(s) can be input or just the
-basename(s) of the file(s).</p></td>
+view. These can be either the name(s) of the R Markdown file(s) in the
+analysis directory or the HTML file(s) in the docs directory. Also, the
+full path(s) to the file(s) can be input or just the basename(s) of the
+file(s). Supports file
+<a href = 'https://en.wikipedia.org/wiki/Glob_(programming)'>globbing</a>.</p></td>
     </tr>
     <tr>
       <th>recent</th>
       <td><p>logical (default: FALSE). If <code>files = NULL</code>, display the
 HTML file with the most recent modification time. If <code>files = NULL</code>
-and <code>recent = FALSE</code>, then <code>index.html</code> is opened.</p></td>
+and <code>recent = FALSE</code>, then <code>index.html</code> is viewed.</p></td>
     </tr>
     <tr>
       <th>dry_run</th>
-      <td><p>logical (default: FALSE). Do not actually open file(s) in
-browser. Mainly useful for testing.</p></td>
+      <td><p>logical (default: FALSE). Do not actually view file(s). Mainly
+useful for testing.</p></td>
     </tr>
     <tr>
       <th>project</th>
@@ -127,19 +133,23 @@ you'll need to provide the path to the project directory.</p></td>
     <h2 class="hasAnchor" id="value"><a class="anchor" href="#value"></a>Value</h2>
 
     <p>Invisibly returns a character vector of the relative paths to the
-  HTML files to be opened.</p>
+  HTML files to be viewed.</p>
     
     <h2 class="hasAnchor" id="details"><a class="anchor" href="#details"></a>Details</h2>
 
-    <p><code>wflow_view</code> by default opens the file <code>index.html</code>. To view the
+    <p><code>wflow_view</code> by default displays the file <code>index.html</code>. To view the
 most recently modified HTML file, set <code>recent = TRUE</code>. To specify which
-file(s) to open, specify either the name(s) of the R Markdown or HTML
+file(s) to view, specify either the name(s) of the R Markdown or HTML
 file(s). The path(s) to the file(s) will be discarded, thus only HTML files
 in docs directory can be viewed with this function.
-    <code>wflow_view</code> uses <code>browseURL</code> to open the HTML files in the
-browser. If you wish to do something non-traditional like open an HTML file
+    <code>wflow_view</code> uses <code>browseURL</code> to view the HTML files in the
+browser. If you wish to do something non-traditional like view an HTML file
 that is not in the docs directory or not part of a workflowr project, you can
 use that function directly.</p>
+<p>If <code>wflow_view</code> is run in the RStudio IDE and only one file has been
+requested to be viewed, the file is displayed in the
+<a href = 'https://rstudio.github.io/rstudio-extensions/rstudio_viewer.html'>RStudio
+Viewer</a>.</p>
     
     <h2 class="hasAnchor" id="see-also"><a class="anchor" href="#see-also"></a>See also</h2>
 

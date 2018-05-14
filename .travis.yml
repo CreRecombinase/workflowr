@@ -5,6 +5,13 @@ sudo: false
 cache: packages
 latex: false
 
+
+env:
+  global:
+    # Do not skip tests with skip_on_cran(). Adding this to be explicit for my
+    # future self. This is already set by default.
+    - NOT_CRAN=true
+
 matrix:
   include:
     - os: linux
@@ -15,6 +22,7 @@ matrix:
       env: R_CODECOV=cover-this-build-only
     - os: linux
       r: devel
+      warnings_are_errors: false
     - os: osx
       r: oldrel
     - os: osx

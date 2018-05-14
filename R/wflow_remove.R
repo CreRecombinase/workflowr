@@ -4,12 +4,13 @@
 #' file, the corresponding HTML and other related files are also removed. If the
 #' workflowr project uses Git, \code{wflow_remove} commits the changes.
 #'
-#' @param files character. Files to be removed.
+#' @param files character. Files to be removed. Supports file
+#'   \href{https://en.wikipedia.org/wiki/Glob_(programming)}{globbing}.
 #' @param git logical (default: TRUE). Commit the changes (only applicable if
 #'   Git repository is present).
 #' @param dry_run logical (default: FALSE). Preview the files to be removed but
 #'   do not actually remove them.
-#' @inheritParams wflow_commit
+#' @inheritParams wflow_git_commit
 #'
 #' @return An object of class \code{wflow_remove}, which is a list with the
 #'   following elements:
@@ -30,7 +31,7 @@
 #'
 #'   }
 #'
-#' @seealso \code{\link{wflow_commit}}
+#' @seealso \code{\link{wflow_git_commit}}
 #'
 #' @examples
 #' \dontrun{
@@ -51,16 +52,13 @@ wflow_remove <- function(files,
 
   # Check input arguments ------------------------------------------------------
 
-  if (!(is.character(files) && length(files) > 0)) {
+  if (!(is.character(files) && length(files) > 0))
     stop("files must be a character vector of filenames")
-  } else if (!all(file.exists(files))) {
-    stop("files must exist")
-  } else {
-    # Ensure Windows paths use forward slashes
-    files <- convert_windows_paths(files)
-    # Change filepaths to relative paths
-    files <- relpath_vec(files)
-  }
+  files <- glob(files)
+  if (!all(file.exists(files)))
+    stop("Not all files exist. Check the paths to the files")
+  # Change filepaths to relative paths
+  files <- relative(files)
 
   if (is.null(message)) {
     message <- deparse(sys.call())
@@ -77,17 +75,14 @@ wflow_remove <- function(files,
   if (!(is.logical(dry_run) && length(dry_run) == 1))
     stop("dry_run must be a one-element logical vector")
 
-  if (is.character(project) && length(project) == 1) {
-    # Ensure Windows paths use forward slashes
-    project <- convert_windows_paths(project)
-    if (dir.exists(project)) {
-      project <- normalizePath(project)
-    } else {
-      stop("project directory does not exist.")
-    }
-  } else {
+  if (!(is.character(project) && length(project) == 1))
     stop("project must be a one-element character vector")
+
+  if (!dir.exists(project)) {
+    stop("project directory does not exist.")
   }
+
+  project <- absolute(project)
 
   # Assess project status ------------------------------------------------------
 
@@ -106,11 +101,18 @@ wflow_remove <- function(files,
   # Are any of the specified files R Markdown files in the analysis directory?
   files_ext <- tools::file_ext(files)
   files_rmd <- files[files_ext %in% c("Rmd", "rmd")]
-  files_rmd <- files_rmd[normalizePath(files_rmd) ==
-                         normalizePath(file.path(p$analysis, basename(files_rmd)))]
+  files_rmd <- files_rmd[absolute(files_rmd) ==
+                         absolute(file.path(p$analysis, basename(files_rmd)))]
 
-  files_to_remove <- files
-  dirs_to_remove <- character()
+  # If the user inputs a directory, obtain all the files in those directories so
+  # that they can be removed from the Git repo if applicable.
+  is_dir <- dir.exists(files)
+  files_to_remove <- files[!is_dir]
+  dirs_to_remove <- files[is_dir]
+  for (d in dirs_to_remove) {
+    d_files <- list.files(path = d, full.names = TRUE)
+    files_to_remove <- c(files_to_remove, d_files)
+  }
 
   for (rmd in files_rmd) {
     # Corresponding HTML?
@@ -157,8 +159,8 @@ wflow_remove <- function(files,
 
   if (use_git) {
     # Need to make the files relative to Git directory
-    files_to_remove_rel <- relpath_vec(files_to_remove,
-                                       start = git2r::workdir(r))
+    files_to_remove_rel <- relative(files_to_remove,
+                                    start = git2r::workdir(r))
     # Obtain committed files (relative to Git directory)
     files_committed <- get_committed_files(r)
 

@@ -23,7 +23,8 @@
 <link href="../pkgdown.css" rel="stylesheet">
 <script src="../jquery.sticky-kit.min.js"></script>
 <script src="../pkgdown.js"></script>
-
+  
+  
 <!-- mathjax -->
 <script src='https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML'></script>
 
@@ -55,6 +56,9 @@
 </li>
 <li>
   <a href="../articles/wflow-01-getting-started.html">Getting started</a>
+</li>
+<li>
+  <a href="../articles/wflow-05-faq.html">FAQ</a>
 </li>
 <li>
   <a href="../articles/index.html">Vignettes</a>
@@ -104,8 +108,9 @@ using the workflowr R Markdown template.</p>
       <th>files</th>
       <td><p>character. The name of the R Markdown file(s). If <code>project</code>
 points to a workflowr project (or any subdirectory) the file(s) will be
-saved in the analysis directory. Set <code>project = NULL</code> to
-override this default behavior. Files must have the extension Rmd or rmd.</p></td>
+saved in the analysis directory. Set <code>project = NULL</code> to override this
+default behavior. Files must have the extension Rmd or rmd. Supports file
+<a href = 'https://en.wikipedia.org/wiki/Glob_(programming)'>globbing</a>.</p></td>
     </tr>
     <tr>
       <th>change_wd</th>

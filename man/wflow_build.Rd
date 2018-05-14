@@ -9,38 +9,44 @@ wflow_build(files = NULL, make = is.null(files), update = FALSE,
   local = FALSE, dry_run = FALSE, project = ".")
 }
 \arguments{
-\item{files}{character (default: NULL). Files to build. Supports file
-extensions Rmd and rmd. Only files in the analysis directory are allowed
-(and therefore any path to a file is ignored). If \code{files} is
+\item{files}{character (default: NULL). Files to build. Only allows files in
+the analysis directory with the extension Rmd or rmd. If \code{files} is
 \code{NULL}, the default behavior is to build all outdated files (see
-argument \code{make} below).}
+argument \code{make} below). Supports file
+\href{https://en.wikipedia.org/wiki/Glob_(programming)}{globbing}.}
 
 \item{make}{logical (default: \code{is.null(files)}). When \code{make =
-TRUE}, use Make-like behavior, i.e. build the files that have been updated
-more recently than their corresponding HTML files. This is the default
+TRUE}, build any files that have been modified more recently than their
+corresponding HTML files (inspired by
+\href{https://www.gnu.org/software/make/}{GNU Make}). This is the default
 action if no files are specified.}
 
-\item{update}{logical (default: FALSE). Build the files that have been
+\item{update}{logical (default: FALSE). Build any files that have been
 committed more recently than their corresponding HTML files (and do not
 have any unstaged or staged changes). This ensures that the commit version
 ID inserted into the HTML corresponds to the exact version of the source
 file that was used to produce it.}
 
 \item{republish}{logical (default: FALSE). Build all published R Markdown
-files. Useful for site-wide changes like updating the theme, navigation
-bar, or any other setting in \code{_site.yml}.}
+files (that do not have any unstaged or staged changes). Useful for
+site-wide changes like updating the theme, navigation bar, or any other
+setting in \code{_site.yml}.}
 
 \item{view}{logical (default: \code{\link{interactive}}). View the website
-after building files. If only one file is built, it is opened. If more than
-one file is built, the main index page is opened. Not applicable if no
-files are built or if \code{dry_run = TRUE}.}
+with \code{\link{wflow_view}} after building files. If only one file is
+built, it is opened. If more than one file is built, the main index page is
+opened. Not applicable if no files are built or if \code{dry_run = TRUE}.}
 
 \item{seed}{numeric (default: 12345). The seed to set before building each
-file. Passed to \code{\link{set.seed}}.}
+file. Passed to \code{\link{set.seed}}. \bold{DEPRECATED:} The seed set
+here has no effect if you are using \code{\link{wflow_html}} as the output
+format defined in \code{_site.yml}. This argument is for backwards
+compatibility with previous versions of workflowr.}
 
 \item{log_dir}{character (default: NULL). The directory to save log files
 from building files. It will be created if necessary and ignored if
-\code{local = TRUE}. The default is to create a directory in \code{/tmp}.}
+\code{local = TRUE}. The default is to use a directory named
+\code{workflowr} in \code{\link{tempdir}}.}
 
 \item{local}{logical (default: FALSE). Build files locally in the R console.
 This should only be used for debugging purposes. The default is to build
@@ -92,7 +98,12 @@ the changes. When you are ready to commit the files, use
 }
 \details{
 \code{wflow_build} has multiple, non-mutually exclusive options for deciding
-which files to build:
+which files to build. In other words, if multiple options are set to
+\code{TRUE}, the union of all files will be built. The argument \code{make}
+is the most useful for interactively performing your analysis. The other
+options are more useful when you are ready to publish specific files with
+\code{\link{wflow_publish}} (which passes these arguments to
+\code{wflow_build}).
 
 \itemize{
 
@@ -101,11 +112,14 @@ which files to build:
 \item If \code{make = TRUE}, all files which have been modified more recently
 than their corresponding HTML files will be built.
 
-\item If \code{update = TRUE}, all files which have been committed more
-recently than their corresponding HTML files will be built. However, files
-which currently have staged or unstaged changes will be ignored.
+\item If \code{update = TRUE}, all previously published files which have been
+committed more recently than their corresponding HTML files will be built.
+However, files which currently have staged or unstaged changes will be
+ignored.
 
 \item If \code{republish = TRUE}, all published files will be rebuilt.
+However, files which currently have staged or unstaged changes will be
+ignored.
 
 }
 
@@ -115,14 +129,18 @@ Under the hood, \code{wflow_build} is a wrapper for
 \examples{
 \dontrun{
 
-# Build all files
+# Build any files which have modified
 wflow_build() # equivalent to wflow_build(make = TRUE)
 # Build a single file
 wflow_build("file.Rmd")
 # Build multiple files
 wflow_build(c("file1.Rmd", "file2.Rmd"))
-# Build every file
+# Build multiple files using a file glob
+wflow_build("file*.Rmd")
+# Build every published file
 wflow_build(republish = TRUE)
+# Build file.Rmd and any files which have been modified
+wflow_build("file.Rmd", make = TRUE)
 }
 
 }

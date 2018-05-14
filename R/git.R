@@ -26,8 +26,7 @@ extract_commit <- function(path, num) {
             is.numeric(num),
             num == trunc(num),
             num > 0)
-  # Ensure Windows paths use forward slashes
-  path <- convert_windows_paths(path)
+  path <- absolute(path)
   if (!git2r::in_repository(path)) {
     return(list(sha1 = "NA", message = "NA"))
   }
@@ -45,33 +44,6 @@ extract_commit <- function(path, num) {
   sha1 <- substr(commit, 2, 8)
   commit_message <- strsplit(commit, split = "commit: ")[[1]][2]
   return(list(sha1 = sha1, message = commit_message))
-}
-
-# Create a default .gitignore file
-#
-# The .gitignore in inst/infrastrucure does not survive builing the R package.
-# The .nojekyll does, so it must be specific to this filename and not a
-# property of hidden files. Hadley does not include .gitignore in
-# .Rbuildignore, which further supports that it is ignored by default.
-create_gitignore <- function(path, overwrite = FALSE) {
-  lines <- c(".Rproj.user",
-             ".Rhistory",
-             ".RData",
-             ".Ruserdata",
-             ".Rapp.history",
-             ".DS_Store",
-             "analysis/figure",
-             "analysis/*html",
-             "analysis/*_cache")
-  fname <- file.path(path, ".gitignore")
-  exists <- file.exists(fname)
-  if (exists & !overwrite) {
-    warning(sprintf("File %s already exists. Set overwrite = TRUE to replace",
-                    fname))
-  } else {
-    writeLines(lines, con = fname)
-  }
-  return(invisible(fname))
 }
 
 # Obtain all the committed files in a Git repository at a given commit.
@@ -167,7 +139,7 @@ get_recent_commit_time <- function(repo, f) {
 # is found first, then it is up-to-date (return FALSE).
 #
 # @seealso \code{\link{obtain_files_in_commit}},
-#   \code{\link{obtain_files_in_commit_root}}, \code{\link{wflow_commit}}
+#   \code{\link{obtain_files_in_commit_root}}, \code{\link{wflow_git_commit}}
 decide_to_render <- function(repo, log, rmd) {
   stopifnot(class(repo) == "git_repository",
             class(log) == "list",
@@ -279,4 +251,205 @@ obtain_files_in_commit_root <- function(repo, commit) {
   }
 
   return(files)
+}
+
+# Stop if HEAD does not point to a branch
+check_branch <- function(git_head) {
+  if (!git2r::is_branch(git_head)) {
+    m <-
+      "You are not currently on any branch. Instead you are in 'detached HEAD'
+      state. workflowr doesn't support such advanced Git options. If you
+      didn't mean to do this, try running `git checkout master` in the
+      Terminal. If you did mean to do this, please use Git directly from the
+      Terminal to push your commits."
+    stop(wrap(m), call. = FALSE)
+  }
+}
+
+# Check remote repository.
+#
+# If there are no remotes available, confirm that the remote provided is a URL.
+#
+# If a remote is specified, confirm it exists.
+#
+# remote - character vector or NULL
+# remote_avail - a named character vector of remote URLs
+check_remote <- function(remote, remote_avail) {
+  if (!(is.null(remote) || is.character(remote)))
+    stop("remote must be NULL or character vector")
+  if (!is.character(remote_avail))
+    stop("remote_avail must be a character vector")
+
+  # Fail early if no remotes (and the remote argument isn't a URL)
+  if (length(remote_avail) == 0) {
+    if (is.null(remote)) {
+      m <-
+        "No remote repositories are available. Run ?wflow_git_remote to learn how
+        to configure this."
+      stop(wrap(m), call. = FALSE)
+    } else if (any(stringr::str_detect(remote, c("https", "git@")))) {
+      m <-
+        "Instead of specifying the URL to the remote repository, you can save
+        it as a remote. Run ?wflow_git_remote for details."
+      warning(wrap(m), call. = FALSE)
+      return()
+    } else {
+      m <-
+        "You have specifed a remote, but this remote repository has no remotes
+        set. Run ?wflow_git_remote to learn how to configure this."
+      stop(wrap(m), call. = FALSE)
+    }
+  }
+
+  # Fail early if remote is specified but doesn't exist
+  if (!is.null(remote) && !(remote %in% names(remote_avail))) {
+    m <-
+      "The remote you specified is not one of the remotes available. Run
+      ?wflow_git_remote to learn how to add this remote."
+    stop(wrap(m), call. = FALSE)
+  }
+}
+
+# Determine which remote and branch to push or pull.
+#
+# This function assumes error handling has already happened upstream.
+#
+# See the documentation for wflow_git_push or wflow_git_pull for the explanation
+# of this function.
+#
+# Returns a list of length two.
+determine_remote_and_branch <- function(repo, remote, branch) {
+  stopifnot(class(repo) == "git_repository")
+  git_head <- git2r::head(repo)
+  tracking <- git2r::branch_get_upstream(git_head)
+  # If both remote and branch are NULL and the current branch is tracking a
+  # remote branch, use this remote and branch.
+  if (is.null(remote) && is.null(branch) && !is.null(tracking)) {
+    remote <- git2r::branch_remote_name(tracking)
+    branch <- stringr::str_split_fixed(tracking@name, "/", n = 2)[, 2]
+  }
+  # If remote is NULL, take an educated guess at what the user would want.
+  if (is.null(remote)) {
+    remote <- guess_remote(repo)
+  }
+  # If branch is NULL, use the same name as the current branch.
+  if (is.null(branch)) {
+    branch <- git_head@name
+  }
+
+  return(list(remote = remote, branch = branch))
+}
+
+# Take an educated guess of which remote to use if the user didn't specify one
+# and the current branch is not tracking a remote branch.
+#
+# 1. If there is only 1 remote available, use it.
+# 2. If there are multiple remotes available and one is called "origin", use it.
+# 3. If there are multiple remotes available and none is "origin", throw error.
+guess_remote <- function(repo) {
+  stopifnot(class(repo) == "git_repository")
+  remotes <- git2r::remotes(repo)
+
+  if (length(remotes) == 1) {
+    guess <- remotes
+  } else if ("origin" %in% remotes) {
+    guess <- "origin"
+  } else {
+    m <-
+      "Unable to guess which remote repository to use. Please specify the
+      argument `remote`. To see all the remotes available, you can run
+      `wflow_git_remote()`."
+    stop(wrap(m), call. = FALSE)
+  }
+
+  return(guess)
+}
+
+# Send warning if the remote branch is not the same one as local branch (HEAD)
+warn_branch_mismatch <- function(remote_branch, local_branch) {
+  if (!(is.character(remote_branch) && is.character(local_branch)))
+    stop("remote_branch and local_branch must be character vectors")
+
+  if (remote_branch != local_branch) {
+    m <- sprintf(
+      "The remote branch is \"%s\", but the current local branch is \"%s\".
+      This is a valid option, but it is non-conventional. Is this what you
+      intended?",
+      remote_branch, local_branch)
+    warning(wrap(m), call. = FALSE)
+  }
+}
+
+# Authenticate with Git using either HTTPS or SSH
+#
+# remote - the name or URL of a remote repository
+# remote_avail - a named character vector of remote URLs
+# username - GitHub username or NULL
+# password - GitHub password or NULL
+# dry_run - logical
+authenticate_git <- function(remote, remote_avail, username = NULL,
+                             password = NULL, dry_run = FALSE) {
+  if (!(is.character(remote) && is.character(remote_avail)))
+    stop("remote and remote_avail must be character vectors")
+  if (!(is.null(username) || (is.character(username) && length(username) == 1)))
+    stop("username must be NULL or a one-element character vector")
+  if (!(is.null(password) || (is.character(password) && length(password) == 1)))
+    stop("password must be NULL or a one-element character vector")
+
+  # Determine if using HTTPS or SSH protocol
+  if (remote %in% names(remote_avail)) {
+    url <- remote_avail[remote]
+  } else {
+    url <- remote
+  }
+  if (stringr::str_sub(url, 1, 5) == "https") {
+    protocol <- "https"
+  } else if (stringr::str_sub(url, 1, 4) == "git@") {
+    protocol <- "ssh"
+  } else {
+    m <- "The URL to the remote repository is using an unknown protocol. It
+    should start with https if you are using your username and password
+    for authentication, or with git@ if you are using your SSH keys. If
+    you are trying to acheive something non-standard, please use Git
+    via the command line interface."
+    stop(wrap(m), call. = FALSE)
+  }
+
+  if (protocol == "https" && !dry_run) {
+    if (is.null(username)) {
+      if (interactive()) {
+        username <- readline("Please enter your GitHub username: ")
+      } else {
+        m <-
+          "No username was specified. Either include the username in the
+         function call or run the command in an interactive R session to be
+         prompted to enter it."
+        stop(wrap(m), call. = FALSE)
+      }
+    }
+    if (is.null(password)) {
+      if (interactive()) {
+        password <- getPass::getPass("Please enter your GitHub password: ")
+      } else {
+        m <-
+          "No password was specified. Either include the password in the
+         function call (not recommended) or run the command in an interactive
+         R session to be prompted to enter it in a secure manner."
+        stop(wrap(m), call. = FALSE)
+      }
+    }
+    credentials <- git2r::cred_user_pass(username = username,
+                                         password = password)
+  } else {
+    # If dry run, credentials aren't needed.
+    #
+    # If using SSH, can't run cred_ssh_key() here if using a passphrase.
+    # credentials has to be entered as NULL when calling push or pull in order
+    # for it to work.
+    #
+    # https://github.com/hadley/devtools/issues/642#issuecomment-139357055
+    # https://github.com/ropensci/git2r/issues/284#issuecomment-306103004
+    credentials <- NULL
+  }
+  return(credentials)
 }

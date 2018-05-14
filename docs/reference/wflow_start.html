@@ -6,7 +6,7 @@
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>Start a new workflowr project. — wflow_start • workflowr</title>
+<title>Start a new workflowr project — wflow_start • workflowr</title>
 
 <!-- jquery -->
 <script src="https://code.jquery.com/jquery-3.1.0.min.js" integrity="sha384-nrOSfDHtoPMzJHjVTdCopGqIqeYETSXhZDFyniQ8ZHcVy08QesyHcnOUpMpqnmWq" crossorigin="anonymous"></script>
@@ -23,7 +23,8 @@
 <link href="../pkgdown.css" rel="stylesheet">
 <script src="../jquery.sticky-kit.min.js"></script>
 <script src="../pkgdown.js"></script>
-
+  
+  
 <!-- mathjax -->
 <script src='https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML'></script>
 
@@ -57,6 +58,9 @@
   <a href="../articles/wflow-01-getting-started.html">Getting started</a>
 </li>
 <li>
+  <a href="../articles/wflow-05-faq.html">FAQ</a>
+</li>
+<li>
   <a href="../articles/index.html">Vignettes</a>
 </li>
 <li>
@@ -85,7 +89,7 @@
       <div class="row">
   <div class="col-md-9 contents">
     <div class="page-header">
-    <h1>Start a new workflowr project.</h1>
+    <h1>Start a new workflowr project</h1>
     </div>
 
     
@@ -96,7 +100,8 @@ also changes the working directory to the workflowr project.</p>
     
 
     <pre class="usage"><span class='fu'>wflow_start</span>(<span class='no'>directory</span>, <span class='kw'>name</span> <span class='kw'>=</span> <span class='kw'>NULL</span>, <span class='kw'>git</span> <span class='kw'>=</span> <span class='fl'>TRUE</span>, <span class='kw'>existing</span> <span class='kw'>=</span> <span class='fl'>FALSE</span>,
-  <span class='kw'>overwrite</span> <span class='kw'>=</span> <span class='fl'>FALSE</span>, <span class='kw'>change_wd</span> <span class='kw'>=</span> <span class='fl'>TRUE</span>)</pre>
+  <span class='kw'>overwrite</span> <span class='kw'>=</span> <span class='fl'>FALSE</span>, <span class='kw'>change_wd</span> <span class='kw'>=</span> <span class='fl'>TRUE</span>, <span class='kw'>user.name</span> <span class='kw'>=</span> <span class='kw'>NULL</span>,
+  <span class='kw'>user.email</span> <span class='kw'>=</span> <span class='kw'>NULL</span>)</pre>
     
     <h2 class="hasAnchor" id="arguments"><a class="anchor" href="#arguments"></a> Arguments</h2>
     <table class="ref-arguments">
@@ -112,7 +117,7 @@ be created.</p></td>
       <td><p>character (default: NULL). Project name, e.g. "My Project". When
 <code>name = NULL</code>, the project name is automatically set based on the
 argument <code>directory</code>. For example, if <code>directory =
-"~/Desktop/myproject"</code>, then <code>name</code> is set to <code>"myproject"</code>.
+"~/projects/myproject"</code>, then <code>name</code> is set to <code>"myproject"</code>.
 <code>name</code> is displayed on the site's navigation bar and the README.md.</p></td>
     </tr>
     <tr>
@@ -135,13 +140,28 @@ add the workflowr files to an existing project.</p></td>
     <tr>
       <th>overwrite</th>
       <td><p>logical (default: FALSE). Control whether to overwrite
-existing files. Only relevant if <code>existing = TRUE</code>. Passed to
-<code>file.copy</code>.</p></td>
+existing files. Only relevant if <code>existing = TRUE</code>.</p></td>
     </tr>
     <tr>
       <th>change_wd</th>
       <td><p>logical (default: TRUE). Change the working directory to the
 <code>directory</code>.</p></td>
+    </tr>
+    <tr>
+      <th>user.name</th>
+      <td><p>character (default: NULL). The user name used by Git to sign
+commits, e.g. "My Name". This setting will only apply to this specific
+workflowr project being created. To create a Git user name to apply to all
+workflowr projects (and Git repositories) on this computer, instead use
+<code><a href='wflow_git_config.html'>wflow_git_config</a></code>.</p></td>
+    </tr>
+    <tr>
+      <th>user.email</th>
+      <td><p>character (default: NULL). The email addresse used by Git
+to sign commits, e.g. "email@domain". This setting will only apply to this
+specific workflowr project being created. To create a Git email address to
+apply to all workflowr projects (and Git repositories) on this computer,
+instead use <code><a href='wflow_git_config.html'>wflow_git_config</a></code>.</p></td>
     </tr>
     </table>
     

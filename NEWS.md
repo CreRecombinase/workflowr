@@ -1,3 +1,162 @@
+# workflowr 1.0.1
+
+Various minor changes to documentation, tests, and package infrastructure to
+prepare for CRAN submission.
+
+# workflowr 1.0.0
+
+The 1.0.0 release is a major change. Instead of relying on the external code chunks
+in `chunks.R` to implement the reproducibility features, workflowr 1.0.0 replaces
+`chunks.R` with the output format `wflow_html()` and site generator
+`wflow_site()`. This enables a much more informative reproducibility report to
+be created.
+
+```
+# Install from GitHub
+devtools::install_github("jdblischak/workflowr")
+
+# Start a new project to test out the new features
+wflow_start("testproject")
+
+# Learn about the new ways to customize your site
+?wflow_html
+
+# Update an existing project
+wflow_update()
+```
+
+## Details
+
+* Introduce `wflow_html()` and `wflow_site()` to overhaul the reproduciblity
+features of workflowr
+* Improve API consistency:
+    * `wflow_commit()` -> `wflow_git_commit()`
+    * `wflow_remotes()` -> `wflow_git_remote()`
+* Remove some less commonly used infrastructure files
+* Remove template infrastructure: `wflow_open()` and `wflow_convert()`
+* Reimplement `wflow_update()` to udpate a pre-1.0 workflowr project to a
+post-1.0 project
+* Remove `create_links_page()` (not widely used, if at all)
+* Note in documentation that setting the seed via `wflow_build()` or
+`wflow_publish()` is ignored if using `wflow_html()`
+* `wflow_publish(republish = TRUE)` does not build HTML files that have
+unstaged/staged changes
+* `wflow_build()` reports the total number of files that will be built
+* Enable `wflow_start()` to set local Git user.name and user.email. Preferred
+method for most users is still to set global Git user.name and user.email with
+`wflow_git_config()`.
+
+# workflowr 0.11.0
+
+* `wflow_publish()` now views the website by default if run interactively (`view
+= interactive()`) just like `wflow_build()`
+
+* Pin the dependency git2r to version 0.21.0 or lower because of the
+[forthcoming breaking changes in the git2r API][git2r-api-change]. This is not a
+great solution because `install.packages()` always installs the latest version,
+which will cause an error in the installation. If you are having trouble with
+this, first install git2r with `devtools::install_version("git2r", "0.21.0")`
+and then retry installing workflowr. If your machine is running macOS or
+Windows, you may need to run `install_version("git2r", "0.21.0", type = "binary")`.
+
+* Fix minor bug that affected the error message produced for a failed push or
+pull using the SSH protocol
+
+* When `wflow_git_push()` or `wflow_git_pull()` fails for an unknown reason, the
+exact error message from `git2r::push()` or `git2r::pull()` is reported to
+faciliate troubleshooting
+
+* Multiple other internal changes to make workflowr more robust
+
+[git2r-api-change]: https://github.com/ropensci/git2r/issues/312
+
+# workflowr 0.10.2
+
+Fix bug that caused `wflow_status()` (and thus `wflow_publish()`) to ignore R
+Markdown files with the all lowercase file extension `.rmd` (reported by @LSun
+and @pcarbo). This was recently introduced in commit
+[a8ce711](https://github.com/jdblischak/workflowr/commit/a8ce711de4ea2939bf76f2c2403c1d631ec130b0#diff-08716e76a3c9aeb6ad641bb23e5e5ea6R126),
+so it only affected versions 0.10.0 and 0.10.1.
+
+# workflowr 0.10.1
+
+Fix bug that prevented deleted files from being committed with `wflow_commit()`
+or `wflow_publish()` (reported by @pcarbo)
+
+# workflowr 0.10.0
+
+## Integration with RStudio Viewer
+
+* `wflow_view()` (or `wflow_build()`) now opens the website in the [RStudio
+Viewer][rstudio-viewer] if run from within RStudio
+
+## File globbing
+
+* Main workflowr functions now accept [file globs][glob] as input (#84)
+
+## Miscellaneous
+
+* `wflow_build()` automatically removes unused figure files
+* Improved documentation of `wflow_build()` arguments
+
+[glob]: https://en.wikipedia.org/wiki/Glob_(programming)
+[rstudio-viewer]: https://rstudio.github.io/rstudio-extensions/rstudio_viewer.html
+
+# workflowr 0.9.0
+
+## New RStudio project template
+
+* New workflowr projects can now be created directly in RStudio using the
+workflowr [project template][pt] (requires RStudio v1.1.28 or greater)
+
+## Improved support for Windows
+
+* Implemented continuous integration testing for Windows with
+[AppVeyor][appveyor]
+* Fixed unit test failures due to edge cases in Windows (#76)
+* Skip evaluation of vignette code during installation if the machine does not
+have the necessary configuration (#87, #88)
+
+## Log files
+
+* The log files by default are now written to the directory returned by
+`tempdir()` instead of to `/tmp/workflowr`. This prevents failures due to
+permission issues when mutliple workflowr users try to use the same machine
+(e.g. a compute node on a HPC cluster) (#86)
+
+## Miscellaneous
+
+* Bug fix: When using `wflow_build()` to build the R Markdown files in an
+external R process, it now runs `render_site()` in the global environment of the
+external R process. This better mimics the results of the RStudio "Knit" button.
+
+[appveyor]: https://ci.appveyor.com
+[pt]: https://rstudio.github.io/rstudio-extensions/rstudio_project_templates.html
+
+# workflowr 0.8.0
+
+## Git installation is now optional
+
+* It is no longer required to install Git prior to using workflowr. Git can be
+installed at a later time if more advanced operations are needed. The Quick
+Start and Getting Started vignette have been updated to reflect this.
+* `wflow_git_config()` sets the Git options `user.name` and `user.email`
+* `wflow_git_push()` pushes changes from the local computer to GitHub
+* `wflow_git_pull()` pulls the changes from GitHub to the local computer
+
+## Miscellaneous
+
+* Added FAQ on sharing workflowr sites securely using Beaker Browswer
+(@johnsonlab in #59 & #65)
+* Added .Rprofile to automatically load workflowr (@vanAmsterdam in #73)
+* Added FAQ about website not displaying (#70)
+* Added tag to footer.html to adjust MathJax settings so that all math formulae
+are shown using TeX fonts only. This will make the presentation more consistent
+at the cost of the webpage sometimes taking slightly longer to load. (@pcarbo)
+* Increase spacing between sections in HTML (@pcarbo in #57)
+* Minor changes to improve error messages (#61)
+* Minor updates to documentation
+
 # workflowr 0.7.0
 
 ## wflow_build
@@ -164,7 +323,7 @@ Users should run `wflow_build()` instead. `wflow_update()` removes the build spe
 * Code coverage with [covr][] and [Codecov][]
 * Package documentation with [pkgdown][]
 
-[pkgdown]: http://hadley.github.io/pkgdown/
+[pkgdown]: http://pkgdown.r-lib.org/
 [travis]: https://travis-ci.org/
 [covr]: https://github.com/jimhester/covr
 [Codecov]: https://codecov.io/

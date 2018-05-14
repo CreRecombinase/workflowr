@@ -22,13 +22,20 @@ wflow_paths <- function(error_git = FALSE, project = ".") {
   o <- list()
 
   # workflowr root
-  project <- normalizePath(project)
+  project <- absolute(project)
   o$root <- try(rprojroot::find_rstudio_root_file(path = project),
                 silent = TRUE)
   if (class(o$root) == "try-error")
     stop(wrap(
-      "Unable to find RStudio Rproj file at the root of the workflowr project.
-      Did you delete it?"),
+      "Unable to detect a workflowr project. This could be due to one of the
+      following reasons:
+
+      1) The function was not executed inside a workflowr project. Run
+      `getwd()` to determine the current working directory. Is the working
+      directory a workflowr project or one of its subdirectories?
+
+      2) The RStudio .Rproj file was deleted. workflowr requires an RStudio
+      .Rproj file to be located at the root of the project. Was it deleted?"),
       call. = FALSE)
 
   # Analysis directory with _site.yml
@@ -53,7 +60,7 @@ wflow_paths <- function(error_git = FALSE, project = ".") {
     stop(wrap("Unable to locate the website directory. Make sure to set the
               variable output_dir in the file _site.yml"),
          call. = FALSE)
-  o$docs <- normalizePath(file.path(o$analysis, output_dir), mustWork = FALSE)
+  o$docs <- absolute(file.path(o$analysis, output_dir))
   if (!dir.exists(o$docs)) {
     warning("Unable to locate docs directory. Run wflow_build() to create it.")
   }
@@ -65,14 +72,14 @@ wflow_paths <- function(error_git = FALSE, project = ".") {
       stop(wrap("A Git repository is required for this functionality."),
            call. = FALSE)
     } else {
-      o$git <- NA
+      o$git <- NA_character_
     }
   } else {
-    o$git <- remove_trailing_slash(r@path)
+    o$git <- absolute(r@path)
   }
 
   # Make paths relative to working directory
-  o <- lapply(o, relpath)
+  o <- lapply(o, relative)
 
   return(o)
 }

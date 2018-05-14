@@ -23,7 +23,8 @@ test_that("to_html converts file extension even if it also appears in filename",
 test_that("to_html converts simple absolute path", {
   docs <- "/home/user/project/docs"
   expected <- file.path(docs, "file.html")
-  actual <- workflowr:::to_html("/home/user/project/analysis/file.Rmd", outdir = docs)
+  actual <- workflowr:::to_html("/home/user/project/analysis/file.Rmd",
+                                outdir = docs)
   expect_identical(actual, expected)
 })
 
@@ -63,147 +64,223 @@ test_that("to_html throws errors for invalid extensions", {
   expect_error(workflowr:::to_html("file"), "Invalid file extension")
 })
 
-# Test commonprefix ------------------------------------------------------------
+# Test absolute ----------------------------------------------------------------
 
-# Warning: The implementation of commonprefix is substantially different from
-# its Python version
-test_that("commonprefix finds common ", {
-  expect_identical(
-    workflowr:::commonprefix(c("a", "b", "c"), c("a", "b", "c")),
-    c("a", "b", "c")
-  )
-  expect_identical(
-    workflowr:::commonprefix(c("a", "b", "c"), c("a", "b", "z")),
-    c("a", "b")
-  )
-  expect_identical(
-    workflowr:::commonprefix(c("a", "b", "c"), c("a", "y", "z")),
-    "a"
-  )
-  expect_identical(
-    workflowr:::commonprefix(c("a", "b", "c"), c("x", "y", "z")),
-    character()
-  )
+test_that("absolute expands existing file", {
+  path_rel <- "test-utility.R"
+  path_abs <- workflowr:::absolute(path_rel)
+  expect_true(R.utils::isAbsolutePath(path_abs))
 })
 
-test_that("commonprefix handles edge cases", {
-  expect_identical(workflowr:::commonprefix("a", "a"), "a")
-  expect_identical(workflowr:::commonprefix("a", "b"), character())
-  expect_identical(workflowr:::commonprefix(character(), "a"), character())
-  expect_identical(workflowr:::commonprefix("a", character()), character())
-  expect_identical(workflowr:::commonprefix(character(), character()), character())
-  expect_identical(workflowr:::commonprefix("", "a"), character())
-  expect_identical(workflowr:::commonprefix("a", ""), character())
-  expect_identical(workflowr:::commonprefix("", ""), "")
+test_that("absolute expands existing directory", {
+  path_rel <- "."
+  path_abs <- workflowr:::absolute(path_rel)
+  expect_true(R.utils::isAbsolutePath(path_abs))
 })
 
-# Test relpath -----------------------------------------------------------------
+test_that("absolute expands non-existent file", {
+  path_rel <- "non-existent-file"
+  path_abs <- workflowr:::absolute(path_rel)
+  expect_true(R.utils::isAbsolutePath(path_abs))
+})
 
-test_that("relpath returns subdirectory", {
+test_that("absolute expands non-existent directory", {
+  path_rel <- "a/b/c"
+  path_abs <- workflowr:::absolute(path_rel)
+  expect_true(R.utils::isAbsolutePath(path_abs))
+})
+
+test_that("absolute removes duplicated forward slashes", {
+  path_rel <- "a//b/c"
+  path_abs <- workflowr:::absolute(path_rel)
+  expect_false(stringr::str_detect(path_abs, "//"))
+})
+
+test_that("absolute removes duplicated back slashes", {
+  path_rel <- "a\\\\b/c"
+  path_abs <- workflowr:::absolute(path_rel)
+  expect_false(stringr::str_detect(path_abs, "\\\\"))
+})
+
+test_that("absolute removes trailing forward slash(es)", {
+  path_rel <- c("a/b/c/", "a/b/c//")
+  path_abs <- workflowr:::absolute(path_rel)
+  expect_false(all(stringr::str_detect(path_abs, "/$")))
+})
+
+test_that("absolute removes trailing back slash(es)", {
+  path_rel <- c("a\\b\\c\\", "a\\b\\c\\\\")
+  path_abs <- workflowr:::absolute(path_rel)
+  expect_false(all(stringr::str_detect(path_abs, "\\$")))
+})
+
+test_that("absolute converts back slashes to forward slashes", {
+  path_rel <- c("a\\b\\c\\", "a\\\\b\\\\c\\\\")
+  path_abs <- workflowr:::absolute(path_rel)
+  expect_false(all(stringr::str_detect(path_abs, "\\\\")))
+})
+
+test_that("absolute does not add any attributes to the character vector", {
+  path_rel <- c("a/b/c", "x/y/z")
+  path_abs <- workflowr:::absolute(path_rel)
+  expect_true(is.character(path_abs))
+  expect_true(is.null(attributes(path_abs)))
+})
+
+test_that("absolute returns NULL for NULL", {
+  expect_identical(workflowr:::absolute(NULL), NULL)
+})
+
+test_that("absolute returns NA for NA", {
+  expect_identical(workflowr:::absolute(NA), NA)
+})
+
+# Test relative ----------------------------------------------------------------
+
+test_that("relative returns subdirectory", {
   path = "/test/location/project"
   start = "/test/location"
   expected <- "project"
-  actual <- workflowr:::relpath(path, start)
+  actual <- workflowr:::relative(path, start)
   expect_identical(actual, expected)
 })
 
-test_that("relpath returns nested subdirectories", {
+test_that("relative returns nested subdirectories", {
   path = "/test/location/project/sub1/sub2"
   start = "/test/location"
   expected <- "project/sub1/sub2"
-  actual <- workflowr:::relpath(path, start)
+  actual <- workflowr:::relative(path, start)
   expect_identical(actual, expected)
 })
 
-test_that("relpath returns upstream directory", {
+test_that("relative returns upstream directory", {
   path = "/test"
   start = "/test/location"
   expected <- ".."
-  actual <- workflowr:::relpath(path, start)
+  actual <- workflowr:::relative(path, start)
   expect_identical(actual, expected)
 })
 
-test_that("relpath returns multiple upstream directories", {
+test_that("relative returns multiple upstream directories", {
   path = "/test"
   start = "/test/location/project"
   expected <- "../.."
-  actual <- workflowr:::relpath(path, start)
+  actual <- workflowr:::relative(path, start)
   expect_identical(actual, expected)
 })
 
-test_that("relpath returns . when directories are the same", {
+test_that("relative returns . when directories are the same", {
   path = "/test/location/project"
   start = "/test/location/project"
   expected <- "."
-  actual <- workflowr:::relpath(path, start)
+  actual <- workflowr:::relative(path, start)
   expect_identical(actual, expected)
 })
 
-test_that("relpath returns files in upstream directories", {
+test_that("relative returns files in upstream directories", {
   path = "/test/location/project/sub1/file"
   start = "/test/location/project/sub2"
   expected <- "../sub1/file"
-  actual <- workflowr:::relpath(path, start)
+  actual <- workflowr:::relative(path, start)
   expect_identical(actual, expected)
 })
 
-test_that("relpath thows error for relative path with tilde", {
-  expect_error(workflowr:::relpath("~/path", "/path"),
-               "arguments path and start cannot begin with a tilde")
-  expect_error(workflowr:::relpath("/path", "~/path"),
-               "arguments path and start cannot begin with a tilde")
+test_that("relative can handle tilde for home directory", {
+  path = "~/test/location/project/sub1/file"
+  start = "~/test/location/project/sub2"
+  expected <- "../sub1/file"
+  actual <- workflowr:::relative(path, start)
+  expect_identical(actual, expected)
 })
 
-test_that("relpath can handle a tilde in an absolute path", {
+test_that("relative can handle a tilde in an absolute path", {
   path = "/test/location/project/sub1/file~"
   start = "/test/location/project/sub2"
   expected <- "../sub1/file~"
-  actual <- workflowr:::relpath(path, start)
+  actual <- workflowr:::relative(path, start)
   expect_identical(actual, expected)
 })
 
-test_that("relpath returns NULL for NULL", {
-  expect_identical(workflowr:::relpath(NULL), NULL)
+test_that("relative returns NULL for NULL", {
+  expect_identical(workflowr:::relative(NULL), NULL)
 })
 
-test_that("relpath returns NA for NA", {
-  expect_identical(workflowr:::relpath(NA), NA)
+test_that("relative returns NA for NA", {
+  expect_identical(workflowr:::relative(NA), NA)
 })
 
-# Test relpath_vec -------------------------------------------------------------
-
-test_that("relpath_vec works on vector input", {
+test_that("relative works on vector input", {
   path = c("/test", "/test/location/subdir")
   start = "/test/location"
   expected <- c("..", "subdir")
-  actual <- workflowr:::relpath_vec(path, start)
+  actual <- workflowr:::relative(path, start)
   expect_identical(actual, expected)
 })
 
-test_that("relpath_vec works on relative paths to existing files", {
+test_that("relative works on relative paths to existing files", {
   dir.create("x/y/z", recursive = TRUE)
   on.exit(unlink("x", recursive = TRUE, force = TRUE))
   path = c("x", "x/y/z")
   start = "./x/y"
   expected <- c("..", "z")
-  actual <- workflowr:::relpath_vec(path, start)
+  actual <- workflowr:::relative(path, start)
   expect_identical(actual, expected)
 })
 
-test_that("relpath_vec is backwards compatible with relpath", {
-  path = "/test"
-  start = "/test/location"
-  expected <- ".."
-  actual <- workflowr:::relpath_vec(path, start)
-  expect_identical(actual, expected)
-})
-
-test_that("relpath_vec accepts NA and NULL only if some valid input included", {
-  expect_error(workflowr:::relpath_vec(NULL), "path must be a character vector")
-  expect_error(workflowr:::relpath_vec(NA), "path must be a character vector")
+test_that("relative handles NA and NULL", {
+  expect_null(workflowr:::relative(NULL))
+  expect_identical(NA, workflowr:::relative(NA))
   path = c("/test", NA, NULL, "/test/location/subdir")
   start = "/test/location"
   expected <- c("..", NA, NULL, "subdir")
-  actual <- workflowr:::relpath_vec(path, start)
+  actual <- workflowr:::relative(path, start)
   expect_identical(actual, expected)
 })
+
+
+# Test get_github_from_remote --------------------------------------------------
+
+tmp_dir <- tempfile("test-check_vc")
+dir.create(tmp_dir)
+tmp_dir <- workflowr:::absolute(tmp_dir)
+
+test_that("get_github_from_remote returns NA when no Git repo", {
+  observed <- workflowr:::get_github_from_remote(tmp_dir)
+  expect_identical(observed, NA_character_)
+})
+
+git2r::init(tmp_dir)
+r <- git2r::repository(tmp_dir)
+
+test_that("get_github_from_remote returns NA when no remotes", {
+  observed <- workflowr:::get_github_from_remote(tmp_dir)
+  expect_identical(observed, NA_character_)
+})
+
+wflow_git_remote(remote = "nonstandard", user = "testuser", repo = "testrepo",
+                 verbose = FALSE, project = tmp_dir)
+
+test_that("get_github_from_remote returns NA when no origin", {
+  observed <- workflowr:::get_github_from_remote(tmp_dir)
+  expect_identical(observed, NA_character_)
+})
+
+wflow_git_remote(remote = "origin", user = "testuser2", repo = "testrepo",
+                 verbose = FALSE, project = tmp_dir)
+
+test_that("get_github_from_remote works with HTTPS protocol", {
+  observed <- workflowr:::get_github_from_remote(tmp_dir)
+  expect_identical(observed, "https://github.com/testuser2/testrepo")
+})
+
+wflow_git_remote(remote = "origin", user = "testuser2", repo = "testrepo",
+                 protocol = "ssh", action = "set_url", verbose = FALSE,
+                 project = tmp_dir)
+
+test_that("get_github_from_remote works with SSH protocol", {
+  observed <- workflowr:::get_github_from_remote(tmp_dir)
+  expect_identical(observed, "https://github.com/testuser2/testrepo")
+})
+
+unlink(tmp_dir, recursive = TRUE)
+rm(r, tmp_dir)

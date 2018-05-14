@@ -8,6 +8,8 @@ navbar:
       href: index.html
     - text: "Getting started"
       href: articles/wflow-01-getting-started.html
+    - text: "FAQ"
+      href: articles/wflow-05-faq.html
     - text: "Vignettes"
       href: articles/index.html
     - text: "Functions"
@@ -29,33 +31,25 @@ articles:
     - "`wflow-05-faq`"
 
 reference:
-  - title: "Starting a workflowr project"
+  - title: "Main functions"
     contents:
       - wflow_start
-  - title: "Creating new files"
-    contents:
-      - wflow_open
-  - title: "Building the research website"
-    contents:
       - wflow_build
-      - wflow_view
-  - title: "Assessing project status"
-    contents:
       - wflow_status
-  - title: "Publishing the research website"
-    contents:
       - wflow_publish
   - title: "Managing Git and GitHub"
-    desc: "Functions to perform local Git commands"
+    desc: "Functions to perform local Git commands. Not needed if you'd prefer
+           to run Git commands in the Terminal."
     contents:
-      - wflow_commit
-      - wflow_remotes
+      - wflow_git_commit
+      - wflow_git_config
+      - wflow_git_pull
+      - wflow_git_push
+      - wflow_git_remote
+  - title: "Other functions"
+    contents:
+      - wflow_html
       - wflow_remove
-  - title: "Updating projects"
-    desc: "Functions to update workflowr projects or convert existing projects to use workflowr"
-    contents:
-      - wflow_convert
+      - wflow_site
       - wflow_update
-  - title: "Miscellaneous"
-    contents:
-      - create_links_page
+      - wflow_view

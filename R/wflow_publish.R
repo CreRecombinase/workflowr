@@ -2,14 +2,18 @@
 #'
 #' \code{wflow_publish} is the main workflowr function. Use it when you are
 #' ready to publish an analysis to your site. \code{wflow_publish} performs
-#' three steps: 1) commit the file(s), 2) rebuild the file(s), 3) commit the
+#' three steps: 1) commit the file(s) (can include both Rmd and non-Rmd files,
+#' e.g. \code{_site.yml}), 2) rebuild the R Markdown file(s), 3) commit the
 #' generated website file(s). These steps ensure that the version of the HTML
 #' file is created by the latest version of the R Markdown file, which is
 #' critical for reproducibility.
 #'
-#' @param view logical (default: FALSE). View the website after publishing
-#'   files. See \code{\link{wflow_build}} for more details.
-#' @inheritParams wflow_commit
+#' @param files character (default: NULL). R Markdown files and other files to
+#'   be added and committed with Git (step 1). Any R Markdown files will also be
+#'   built (step 2) and their output HTML and figures will be subsequently
+#'   committed (step 3). Supports file
+#'   \href{https://en.wikipedia.org/wiki/Glob_(programming)}{globbing}.
+#' @inheritParams wflow_git_commit
 #' @inheritParams wflow_build
 #'
 #' @return Returns an object of class \code{wflow_publish}, which is a list with
@@ -17,18 +21,18 @@
 #'
 #'   \itemize{
 #'
-#'   \item \bold{step1}: An object of class \code{wflow_commit} from the first
-#'   step of committing the analysis files.
+#'   \item \bold{step1}: An object of class \code{wflow_git_commit} from the first
+#'   step of committing the files.
 #'
 #'   \item \bold{step2}: An object of class \code{wflow_build} from the second
 #'   step of building the HTML files.
 #'
-#'   \item \bold{step3}: An object of class \code{wflow_commit} from the third
+#'   \item \bold{step3}: An object of class \code{wflow_git_commit} from the third
 #'   step of committing the HTML files.
 #'
 #'   }
 #'
-#' @seealso \code{\link{wflow_commit}}, \code{\link{wflow_build}}
+#' @seealso \code{\link{wflow_git_commit}}, \code{\link{wflow_build}}
 #'
 #' @examples
 #' \dontrun{
@@ -42,18 +46,22 @@
 #' wflow_publish(c("analysis/file.Rmd", "analysis/another.Rmd"),
 #'               "Informative commit message")
 #' # All R Markdown files that start with the pattern "new_"
-#' wflow_publish(Sys.glob("analysis/new_*Rmd"), "Informative commit message")
-#' # Republish all published files regardless of whether they have been
-#' # modified. Useful for changing some universal aspect of the site,
-#' # e.g. the theme.
-#' wflow_publish(republish = TRUE, message = "Informative commit message")
-#'
+#' wflow_publish("analysis/new_*Rmd", "Informative commit message")
+#' # Republish all published files even though they haven't been modified.
+#' # Useful for changing some universal aspect of the site, e.g. the theme
+#' # specified in _site.yml.
+#' wflow_publish("analysis/_site.yml", "Informative commit message",
+#'               republish = TRUE)
+#' # Publish all previously published files that have been committed more
+#' # recently than their corresponding HTML files. This is useful if you like to
+#' # manually commit your R Markdown files.
+#' wflow_publish(update = TRUE)
 #' }
 #'
 #' @import rmarkdown
 #' @export
 wflow_publish <- function(
-  # args to wflow_commit
+  # args to wflow_git_commit
   files = NULL,
   message = NULL,
   all = FALSE,
@@ -61,7 +69,7 @@ wflow_publish <- function(
   # args to wflow_build
   update = FALSE,
   republish = FALSE,
-  view = FALSE,
+  view = interactive(),
   seed = 12345,
   # general
   dry_run = FALSE,
@@ -75,15 +83,13 @@ wflow_publish <- function(
   # Check input arguments ------------------------------------------------------
 
   if (!is.null(files)) {
-    if (!is.character(files)) {
+    if (!(is.character(files) && length(files) > 0))
       stop("files must be NULL or a character vector of filenames")
-    } else if (!all(file.exists(files))) {
+    files <- glob(files)
+    if (!all(file.exists(files)))
       stop("Not all files exist. Check the paths to the files")
-    }
-    # Ensure Windows paths use forward slashes
-    files <- convert_windows_paths(files)
     # Change filepaths to relative paths
-    files <- relpath_vec(files)
+    files <- relative(files)
   }
 
   if (is.null(message)) {
@@ -116,17 +122,14 @@ wflow_publish <- function(
   if (!(is.logical(dry_run) && length(dry_run) == 1))
     stop("dry_run must be a one-element logical vector")
 
-  if (is.character(project) && length(project) == 1) {
-    # Ensure Windows paths use forward slashes
-    project <- convert_windows_paths(project)
-    if (dir.exists(project)) {
-      project <- normalizePath(project)
-    } else {
-      stop("project directory does not exist.")
-    }
-  } else {
+  if (!(is.character(project) && length(project) == 1))
     stop("project must be a one-element character vector")
+
+  if (!dir.exists(project)) {
+    stop("project directory does not exist.")
   }
+
+  project <- absolute(project)
 
   # Assess project status ------------------------------------------------------
 
@@ -136,7 +139,7 @@ wflow_publish <- function(
 
   # Step 1: Commit analysis files ----------------------------------------------
 
-  # Decide if wflow_commit should be run. At least one of the following
+  # Decide if wflow_git_commit should be run. At least one of the following
   # scenarios must be true:
   #
   # 1) Rmd files were specified and at least one is scratch (untracked) or has
@@ -155,7 +158,7 @@ wflow_publish <- function(
     any(!(files %in% rownames(s0$status)))
 
   if (scenario1 || scenario2 || scenario3) {
-    step1 <- wflow_commit(files = files, message = message,
+    step1 <- wflow_git_commit(files = files, message = message,
                           all = all, force = force,
                           dry_run = dry_run, project = project)
     # If subsequent steps fail, undo this action by resetting the Git repo to
@@ -193,11 +196,12 @@ wflow_publish <- function(
   files_to_build <- files_to_build[!s1$status[files_to_build, "mod_staged"]]
 
   if (length(files_to_build) > 0) {
-    # As a backup, copy the docs/ directory to /tmp
+    # Create a backup copy of the docs/ directory
     docs_backup <- tempfile(pattern = sprintf("docs-backup-%s-",
                                               format(Sys.time(),
                                                      "%Y-%m-%d-%Hh-%Mm-%Ss")))
     dir.create(docs_backup)
+    docs_backup <- absolute(docs_backup)
     file.copy(from = file.path(s1$docs, "."), to = docs_backup,
               recursive = TRUE, copy.date = TRUE)
     step2 <- wflow_build(files = files_to_build, make = FALSE,
@@ -223,11 +227,11 @@ wflow_publish <- function(
     dir_figure <- file.path(s2$docs, "figure", basename(step2$built))
     files_to_commit <- c(step2$html, dir_figure, site_libs)
 
-    # Call directly to internal function `wflow_commit_` to bypass input checks.
+    # Call directly to internal function `wflow_git_commit_` to bypass input checks.
     # In a dry run, some files may not actually exist yet. Also, not every Rmd
     # file creates figures, but it's easier to just attempt to add figures for
     # every file.
-    step3 <- wflow_commit_(files = files_to_commit, message = "Build site.",
+    step3 <- wflow_git_commit_(files = files_to_commit, message = "Build site.",
                           all = FALSE, force = force,
                           dry_run = dry_run, project = project)
   } else {

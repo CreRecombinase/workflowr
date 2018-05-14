@@ -2,10 +2,11 @@
 % Please edit documentation in R/wflow_start.R
 \name{wflow_start}
 \alias{wflow_start}
-\title{Start a new workflowr project.}
+\title{Start a new workflowr project}
 \usage{
 wflow_start(directory, name = NULL, git = TRUE, existing = FALSE,
-  overwrite = FALSE, change_wd = TRUE)
+  overwrite = FALSE, change_wd = TRUE, user.name = NULL,
+  user.email = NULL)
 }
 \arguments{
 \item{directory}{character. The directory for the project, e.g.
@@ -15,7 +16,7 @@ be created.}
 \item{name}{character (default: NULL). Project name, e.g. "My Project". When
 \code{name = NULL}, the project name is automatically set based on the
 argument \code{directory}. For example, if \code{directory =
-"~/Desktop/myproject"}, then \code{name} is set to \code{"myproject"}.
+"~/projects/myproject"}, then \code{name} is set to \code{"myproject"}.
 \code{name} is displayed on the site's navigation bar and the README.md.}
 
 \item{git}{logical (default: TRUE). Should Git be used for version
@@ -32,11 +33,22 @@ workflowr files into an unwanted location. Only set to TRUE if you wish to
 add the workflowr files to an existing project.}
 
 \item{overwrite}{logical (default: FALSE). Control whether to overwrite
-existing files. Only relevant if \code{existing = TRUE}. Passed to
-\code{file.copy}.}
+existing files. Only relevant if \code{existing = TRUE}.}
 
 \item{change_wd}{logical (default: TRUE). Change the working directory to the
 \code{directory}.}
+
+\item{user.name}{character (default: NULL). The user name used by Git to sign
+commits, e.g. "My Name". This setting will only apply to this specific
+workflowr project being created. To create a Git user name to apply to all
+workflowr projects (and Git repositories) on this computer, instead use
+\code{\link{wflow_git_config}}.}
+
+\item{user.email}{character (default: NULL). The email addresse used by Git
+to sign commits, e.g. "email@domain". This setting will only apply to this
+specific workflowr project being created. To create a Git email address to
+apply to all workflowr projects (and Git repositories) on this computer,
+instead use \code{\link{wflow_git_config}}.}
 }
 \value{
 Invisibly returns absolute path to workflowr project.

@@ -6,7 +6,12 @@
 #' \code{\link{wflow_publish}}.
 #'
 #' \code{wflow_build} has multiple, non-mutually exclusive options for deciding
-#' which files to build:
+#' which files to build. In other words, if multiple options are set to
+#' \code{TRUE}, the union of all files will be built. The argument \code{make}
+#' is the most useful for interactively performing your analysis. The other
+#' options are more useful when you are ready to publish specific files with
+#' \code{\link{wflow_publish}} (which passes these arguments to
+#' \code{wflow_build}).
 #'
 #' \itemize{
 #'
@@ -15,43 +20,52 @@
 #' \item If \code{make = TRUE}, all files which have been modified more recently
 #' than their corresponding HTML files will be built.
 #'
-#' \item If \code{update = TRUE}, all files which have been committed more
-#' recently than their corresponding HTML files will be built. However, files
-#' which currently have staged or unstaged changes will be ignored.
+#' \item If \code{update = TRUE}, all previously published files which have been
+#' committed more recently than their corresponding HTML files will be built.
+#' However, files which currently have staged or unstaged changes will be
+#' ignored.
 #'
 #' \item If \code{republish = TRUE}, all published files will be rebuilt.
+#' However, files which currently have staged or unstaged changes will be
+#' ignored.
 #'
 #' }
 #'
 #' Under the hood, \code{wflow_build} is a wrapper for
 #' \code{\link[rmarkdown]{render_site}} from the package \link{rmarkdown}.
 #'
-#' @param files character (default: NULL). Files to build. Supports file
-#'   extensions Rmd and rmd. Only files in the analysis directory are allowed
-#'   (and therefore any path to a file is ignored). If \code{files} is
+#' @param files character (default: NULL). Files to build. Only allows files in
+#'   the analysis directory with the extension Rmd or rmd. If \code{files} is
 #'   \code{NULL}, the default behavior is to build all outdated files (see
-#'   argument \code{make} below).
+#'   argument \code{make} below). Supports file
+#'   \href{https://en.wikipedia.org/wiki/Glob_(programming)}{globbing}.
 #' @param make logical (default: \code{is.null(files)}). When \code{make =
-#'   TRUE}, use Make-like behavior, i.e. build the files that have been updated
-#'   more recently than their corresponding HTML files. This is the default
+#'   TRUE}, build any files that have been modified more recently than their
+#'   corresponding HTML files (inspired by
+#'   \href{https://www.gnu.org/software/make/}{GNU Make}). This is the default
 #'   action if no files are specified.
-#' @param update logical (default: FALSE). Build the files that have been
+#' @param update logical (default: FALSE). Build any files that have been
 #'   committed more recently than their corresponding HTML files (and do not
 #'   have any unstaged or staged changes). This ensures that the commit version
 #'   ID inserted into the HTML corresponds to the exact version of the source
 #'   file that was used to produce it.
 #' @param republish logical (default: FALSE). Build all published R Markdown
-#'   files. Useful for site-wide changes like updating the theme, navigation
-#'   bar, or any other setting in \code{_site.yml}.
+#'   files (that do not have any unstaged or staged changes). Useful for
+#'   site-wide changes like updating the theme, navigation bar, or any other
+#'   setting in \code{_site.yml}.
 #' @param view logical (default: \code{\link{interactive}}). View the website
-#'   after building files. If only one file is built, it is opened. If more than
-#'   one file is built, the main index page is opened. Not applicable if no
-#'   files are built or if \code{dry_run = TRUE}.
+#'   with \code{\link{wflow_view}} after building files. If only one file is
+#'   built, it is opened. If more than one file is built, the main index page is
+#'   opened. Not applicable if no files are built or if \code{dry_run = TRUE}.
 #' @param seed numeric (default: 12345). The seed to set before building each
-#'   file. Passed to \code{\link{set.seed}}.
+#'   file. Passed to \code{\link{set.seed}}. \bold{DEPRECATED:} The seed set
+#'   here has no effect if you are using \code{\link{wflow_html}} as the output
+#'   format defined in \code{_site.yml}. This argument is for backwards
+#'   compatibility with previous versions of workflowr.
 #' @param log_dir character (default: NULL). The directory to save log files
 #'   from building files. It will be created if necessary and ignored if
-#'   \code{local = TRUE}. The default is to create a directory in \code{/tmp}.
+#'   \code{local = TRUE}. The default is to use a directory named
+#'   \code{workflowr} in \code{\link{tempdir}}.
 #' @param local logical (default: FALSE). Build files locally in the R console.
 #'   This should only be used for debugging purposes. The default is to build
 #'   each file in its own separate fresh R process to ensure each file is
@@ -59,7 +73,7 @@
 #' @param dry_run logical (default: FALSE). List the files to be built, without
 #'   building them.
 #'
-#' @inheritParams wflow_commit
+#' @inheritParams wflow_git_commit
 #'
 #' @return An object of class \code{wflow_build}, which is a list with the
 #'   following elements:
@@ -95,14 +109,18 @@
 #' @examples
 #' \dontrun{
 #'
-#' # Build all files
+#' # Build any files which have modified
 #' wflow_build() # equivalent to wflow_build(make = TRUE)
 #' # Build a single file
 #' wflow_build("file.Rmd")
 #' # Build multiple files
 #' wflow_build(c("file1.Rmd", "file2.Rmd"))
-#' # Build every file
+#' # Build multiple files using a file glob
+#' wflow_build("file*.Rmd")
+#' # Build every published file
 #' wflow_build(republish = TRUE)
+#' # Build file.Rmd and any files which have been modified
+#' wflow_build("file.Rmd", make = TRUE)
 #' }
 #'
 #' @import rmarkdown
@@ -115,20 +133,20 @@ wflow_build <- function(files = NULL, make = is.null(files),
   # Check input arguments ------------------------------------------------------
 
   if (!is.null(files)) {
-    if (!is.character(files)) {
+    if (!(is.character(files) && length(files) > 0))
       stop("files must be NULL or a character vector of filenames")
-    } else if (!all(file.exists(files))) {
+    if (any(dir.exists(files)))
+      stop("files cannot include a path to a directory")
+    files <- glob(files)
+    if (!all(file.exists(files)))
       stop("Not all files exist. Check the paths to the files")
-    }
-    # Ensure Windows paths use forward slashes
-    files <- convert_windows_paths(files)
     # Change filepaths to relative paths
-    files <- relpath_vec(files)
-  }
-  ext <- tools::file_ext(files)
-  ext_wrong <- !(ext %in% c("Rmd", "rmd"))
-  if (any(ext_wrong)) {
-    stop(wrap("File extensions must be either Rmd or rmd."))
+    files <- relative(files)
+    # Check for valid file extensions
+    ext <- tools::file_ext(files)
+    ext_wrong <- !(ext %in% c("Rmd", "rmd"))
+    if (any(ext_wrong))
+      stop(wrap("File extensions must be either Rmd or rmd."))
   }
 
   if (!(is.logical(make) && length(make) == 1))
@@ -147,12 +165,11 @@ wflow_build <- function(files = NULL, make = is.null(files),
     stop("seed must be a one element numeric vector")
 
   if (is.null(log_dir)) {
-    log_dir <- "/tmp/workflowr"
+    log_dir <- file.path(tempdir(), "workflowr")
   } else if (!(is.character(log_dir) && length(log_dir) == 1)) {
     stop("log_dir must be NULL or a one element character vector")
   }
-  # Ensure Windows paths use forward slashes
-  log_dir <- convert_windows_paths(log_dir)
+  log_dir <- absolute(log_dir)
   dir.create(log_dir, showWarnings = FALSE, recursive = TRUE)
 
   if (!(is.logical(local) && length(local) == 1))
@@ -161,17 +178,14 @@ wflow_build <- function(files = NULL, make = is.null(files),
   if (!(is.logical(dry_run) && length(dry_run) == 1))
     stop("dry_run must be a one-element logical vector")
 
-  if (is.character(project) && length(project) == 1) {
-    # Ensure Windows paths use forward slashes
-    project <- convert_windows_paths(project)
-    if (dir.exists(project)) {
-      project <- normalizePath(project)
-    } else {
-      stop("project directory does not exist.")
-    }
-  } else {
+  if (!(is.character(project) && length(project) == 1))
     stop("project must be a one-element character vector")
+
+  if (!dir.exists(project)) {
+    stop("project directory does not exist.")
   }
+
+  project <- absolute(project)
 
   # Obtain files to consider ---------------------------------------------------
 
@@ -179,7 +193,7 @@ wflow_build <- function(files = NULL, make = is.null(files),
   # All files to consider (ignore files that start with an underscore)
   files_all <- list.files(path = p$analysis, pattern = "^[^_].*\\.[Rr]md$",
                           full.names = TRUE)
-  files_all <- relpath_vec(files_all)
+  files_all <- relative(files_all)
 
   # All files must be in the analysis subdirectory. Since it's possible to
   # directly pass a file that starts with an underscore, the file may not be in
@@ -209,7 +223,9 @@ wflow_build <- function(files = NULL, make = is.null(files),
       files_to_build <- union(files_to_build, files_update)
     }
     if (republish) {
-      files_republish <- rownames(s$status)[s$status$published]
+      files_republish <- rownames(s$status)[s$status$published &
+                                           !s$status$mod_unstaged &
+                                           !s$status$mod_staged]
       files_to_build <- union(files_to_build, files_republish)
     }
   }
@@ -217,12 +233,21 @@ wflow_build <- function(files = NULL, make = is.null(files),
   # Build files ----------------------------------------------------------------
 
   if (!dry_run) {
+    n_files <- length(files_to_build)
+    if (n_files > 0) {
+      message(sprintf("Building %i file(s):", n_files))
+    }
     for (f in files_to_build) {
       message("Building ", f)
+      # Remove figure files to prevent accumulating outdated files
+      figs_analysis <- file.path(p$analysis, "figure", basename(f))
+      unlink(figs_analysis, recursive = TRUE)
+      figs_docs <- file.path(p$docs, "figure", basename(f))
+      unlink(figs_docs, recursive = TRUE)
       if (local) {
         build_rmd(f, seed = seed, envir = .GlobalEnv)
       } else {
-        build_rmd_external(f, seed = seed, log_dir = log_dir)
+        build_rmd_external(f, seed = seed, log_dir = log_dir, envir = .GlobalEnv)
       }
     }
   }
@@ -261,10 +286,9 @@ wflow_build <- function(files = NULL, make = is.null(files),
 print.wflow_build <- function(x, ...) {
   cat("Summary from wflow_build\n\n")
   cat("Settings:\n")
-  cat("  seed:", x$seed)
-  if (x$make) cat(", make: TRUE")
-  if (x$update) cat(", update: TRUE")
-  if (x$republish) cat(", republish: TRUE")
+  if (x$make) cat(" make: TRUE")
+  if (x$update) cat(" update: TRUE")
+  if (x$republish) cat(" republish: TRUE")
   cat("\n\n")
 
   if (length(x$built) == 0) {
@@ -320,7 +344,7 @@ return_modified_rmd <- function(rmd_files, docs) {
   return(files_to_update)
 }
 
-build_rmd_external <- function(rmd, seed, log_dir) {
+build_rmd_external <- function(rmd, seed, log_dir, ...) {
   if (!(is.character(rmd) && length(rmd) == 1))
     stop("rmd must be a one element character vector")
   if (!file.exists(rmd))
@@ -342,7 +366,7 @@ build_rmd_external <- function(rmd, seed, log_dir) {
                            paste(rmd_base, date_current, "err.txt", sep = "-"))
   result <- tryCatch(
     callr::r_safe(build_rmd,
-                  args = list(rmd, seed),
+                  args = list(rmd, seed, ...),
                   stdout = stdout_file,
                   stderr = stderr_file),
     error = function(e) {

@@ -2,24 +2,12 @@
 % Please edit documentation in R/wflow_update.R
 \name{wflow_update}
 \alias{wflow_update}
-\title{Update a workflowr project.}
+\title{Update a workflowr project}
 \usage{
-wflow_update(dry_run = TRUE, commit = TRUE, log_file = NULL,
-  log_open = interactive(), project = ".")
+wflow_update(dry_run = TRUE, project = ".")
 }
 \arguments{
-\item{dry_run}{logical (default: TRUE). Preview the proposed updates.}
-
-\item{commit}{logical (default: TRUE). Commit the updated files (only files
-tracked by Git are included in commit). Only executed if \code{dry_run =
-FALSE}.}
-
-\item{log_file}{character (default: NULL). A file to save the log messages.
-If NULL, a temporary file is created.}
-
-\item{log_open}{logical (default: \code{interactive()}). Should the log file
-be opened in RStudio? This argument is ignored if the function is not run
-from within RStudio.}
+\item{dry_run}{logical (default: TRUE). Preview the files to be updated.}
 
 \item{project}{character (default: ".") By default the function assumes the
 current working directory is within the project. If this is not true,
@@ -29,43 +17,53 @@ you'll need to provide the path to the project directory.}
 A character vector of the updated files.
 }
 \description{
-Newer versions of workflowr sometimes make changes that need to be
-coordinated across multiple files. After upgrading workflowr, run
-\code{wflow_update} to make all the necessary changes.
+Update an existing workflowr project to workflowr 1.0.
 }
 \details{
 By default, \code{wflow_update} is run in \code{dry_run} mode so that no
-unwanted changes are made. The log file contains the changes to each file,
-represented with the syntax from the
-\href{https://en.wikipedia.org/wiki/Diff_utility#Usage}{Unix diff utility}.
-After reviewing the log file for the proposed changes, re-run the function
-with \code{dry_run = FALSE} to implement them.
+unwanted changes are made. Here's how to update an existing project to
+workflowr 1.0:
+
+\preformatted{
+# Preview the files that will be updated
+wflow_update()
+# Update the files
+wflow_update(dry_run = FALSE)
+# Preview the updates
+wflow_build()
+# Publish the updates
+wflow_publish("_workflowr.yml", "Update to 1.0", all = TRUE)
+}
 
 Currently \code{wflow_update} checks for the following items:
 
 \itemize{
 
-\item Updates the shared chunks in \code{analysis/chunks.R}.
+\item Adds the site generator \code{site: workflowr::wflow_site} to index.Rmd
 
-\item Updates each R Markdown file in \code{analysis/} to use the shared
-chunks. This is implemented with \code{\link{wflow_convert}}.
+\item Replaces \code{\link[rmarkdown]{html_document}} with
+\code{workflowr::wflow_html} in _site.yml and the YAML header of the R
+Markdown files
 
-\item Removes the "BuildType: Website" from the Rproj file. This re-builds
-every R Markdown file everytime, so it is safer to always use
-\code{\link{wflow_build}}.
+\item Deletes analysis/chunks.R
+
+\item Removes the imported chunks in the R Markdown files
+
+\item Adds a _workflowr.yml file, but does not change any of the options (so
+that your site will continue to produce the same results)
+
+\item Removes the workflowr line from include/footer.html (this is now
+inserted automatically by \code{\link{wflow_html}})
 
 }
 }
 \examples{
 \dontrun{
 
-# Preview the potential changes
+# Preview the files to be udpated
 wflow_update()
-# Incorporate the changes
+# Update the files
 wflow_update(dry_run = FALSE)
 }
 
-}
-\seealso{
-\code{\link{wflow_convert}}
 }

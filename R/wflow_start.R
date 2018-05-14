@@ -1,4 +1,4 @@
-#' Start a new workflowr project.
+#' Start a new workflowr project
 #'
 #' \code{wflow_start} creates a minimal workflowr project. The default
 #' behaviour is to add these files to a new directory, but it is also
@@ -17,7 +17,7 @@
 #' @param name character (default: NULL). Project name, e.g. "My Project". When
 #'   \code{name = NULL}, the project name is automatically set based on the
 #'   argument \code{directory}. For example, if \code{directory =
-#'   "~/Desktop/myproject"}, then \code{name} is set to \code{"myproject"}.
+#'   "~/projects/myproject"}, then \code{name} is set to \code{"myproject"}.
 #'   \code{name} is displayed on the site's navigation bar and the README.md.
 #'
 #' @param git logical (default: TRUE). Should Git be used for version
@@ -33,10 +33,19 @@
 #'   workflowr files into an unwanted location. Only set to TRUE if you wish to
 #'   add the workflowr files to an existing project.
 #' @param overwrite logical (default: FALSE). Control whether to overwrite
-#'   existing files. Only relevant if \code{existing = TRUE}. Passed to
-#'   \code{file.copy}.
+#'   existing files. Only relevant if \code{existing = TRUE}.
 #' @param change_wd logical (default: TRUE). Change the working directory to the
 #'   \code{directory}.
+#' @param user.name character (default: NULL). The user name used by Git to sign
+#'   commits, e.g. "My Name". This setting will only apply to this specific
+#'   workflowr project being created. To create a Git user name to apply to all
+#'   workflowr projects (and Git repositories) on this computer, instead use
+#'   \code{\link{wflow_git_config}}.
+#' @param user.email character (default: NULL). The email addresse used by Git
+#'   to sign commits, e.g. "email@domain". This setting will only apply to this
+#'   specific workflowr project being created. To create a Git email address to
+#'   apply to all workflowr projects (and Git repositories) on this computer,
+#'   instead use \code{\link{wflow_git_config}}.
 #'
 #' @return Invisibly returns absolute path to workflowr project.
 #'
@@ -63,7 +72,9 @@ wflow_start <- function(directory,
                         git = TRUE,
                         existing = FALSE,
                         overwrite = FALSE,
-                        change_wd = TRUE) {
+                        change_wd = TRUE,
+                        user.name = NULL,
+                        user.email = NULL) {
   if (!is.character(directory) | length(directory) != 1)
     stop("directory must be a one element character vector: ", directory)
   if (!(is.null(name) | (is.character(name) | length(name) != 1)))
@@ -76,6 +87,13 @@ wflow_start <- function(directory,
     stop("overwrite must be a one element logical vector: ", overwrite)
   if (!is.logical(change_wd) | length(change_wd) != 1)
     stop("change_wd must be a one element logical vector: ", change_wd)
+  if (!(is.null(user.name) | (is.character(user.name) | length(user.name) != 1)))
+    stop("user.name must be NULL or a one element character vector: ", user.name)
+  if (!(is.null(user.email) | (is.character(user.email) | length(user.email) != 1)))
+    stop("user.email must be NULL or a one element character vector: ", user.email)
+  if ((is.null(user.name) && !is.null(user.email)) ||
+      (!is.null(user.name) && is.null(user.email)))
+    stop("Must specify both user.name and user.email, or neither.")
 
   if (!existing & dir.exists(directory)) {
     stop("Directory already exists. Set existing = TRUE if you wish to add workflowr files to an already existing project.")
@@ -83,8 +101,7 @@ wflow_start <- function(directory,
     stop("Directory does not exist. Set existing = FALSE to create a new directory for the workflowr files.")
   }
 
-  # Ensure Windows paths use forward slashes
-  directory <- convert_windows_paths(directory)
+  directory <- absolute(directory)
 
   # A workflowr directory cannot be created within an existing Git repository if
   # git = TRUE & existing = FALSE.
@@ -99,7 +116,7 @@ wflow_start <- function(directory,
   }
 
   # Require that user.name and user.email be set locally or globally
-  if (git) {
+  if (git && is.null(user.name) && is.null(user.email)) {
     check_git_config(path = directory)
   }
 
@@ -108,26 +125,38 @@ wflow_start <- function(directory,
     dir.create(directory, recursive = TRUE)
   }
 
-  # Convert to absolute path
-  directory <- tools::file_path_as_absolute(directory)
+  # Convert to absolute path. Needs to be run again after creating the directory
+  # because symlinks can only resolved for existing directories.
+  directory <- absolute(directory)
 
   # Configure name of workflowr project
   if (is.null(name)) {
     name <- basename(directory)
   }
 
-  # Copy infrastructure files to new directory
-  infrastructure_path <- system.file("infrastructure/",
-                                     package = "workflowr")
-  project_files <- list.files(path = infrastructure_path, all.files = TRUE,
-                              recursive = TRUE)
-  # Add . to end of path to copy its contents w/o creating a top-level directory
-  # source; http://superuser.com/a/367303/449452
-  file.copy(from = paste0(infrastructure_path, "/."), to = directory,
-            overwrite = overwrite, recursive = TRUE)
+  # Get variables to interpolate into _workflowr.yml
+  wflow_version <- as.character(utils::packageVersion("workflowr"))
+  the_seed_to_set <- as.numeric(format(Sys.Date(), "%Y%m%d")) # YYYYMMDD
 
-  # Create docs/ directory
-  dir.create(file.path(directory, "docs"), showWarnings = FALSE)
+  # Add files ------------------------------------------------------------------
+
+  # Use templates defined in R/templates.R
+  names(templates)[which(names(templates) == "Rproj")] <-
+    glue::glue("{basename(directory)}.Rproj")
+  names(templates) <- file.path(directory, names(templates))
+  project_files <- names(templates)
+
+  # Create subdirectories
+  dir.create.vectorized <- Vectorize(dir.create, vectorize.args = "path")
+  dir.create.vectorized(file.path(directory, c("analysis", "code", "data",
+                                               "docs", "output")),
+                        showWarnings = FALSE)
+
+  for (fname in project_files) {
+    if (!file.exists(fname) || overwrite) {
+      cat(glue::glue(templates[[fname]]), file = fname)
+    }
+  }
 
   # Create .nojekyll files in analysis/ and docs/ directories
   nojekyll_analysis <- file.path(directory, "analysis", ".nojekyll")
@@ -136,26 +165,12 @@ wflow_start <- function(directory,
   file.create(nojekyll_docs)
   project_files <- c(project_files, nojekyll_analysis, nojekyll_docs)
 
-  # Add project name to YAML file
-  yml_template <- readLines(file.path(directory, "analysis/_site.yml"))
-  writeLines(whisker::whisker.render(yml_template, list(name = name)),
-             file.path(directory, "analysis/_site.yml"))
-
-  # Add project name to README.md file
-  readme_template <- readLines(file.path(directory, "README.md"))
-  writeLines(whisker::whisker.render(readme_template, list(name = name)),
-             file.path(directory, "README.md"))
+  # Configure, initialize, and commit ------------------------------------------
 
   # Configure RStudio
   rs_version <- check_rstudio_version()
 
-  # Rename RStudio Project file
-  file.rename(file.path(directory, "temp-name.Rproj"),
-              file.path(directory, paste0(basename(directory), ".Rproj")))
-  project_files <- stringr::str_replace(project_files, "temp-name",
-                                        basename(directory))
-
-  message("Project \"", name, "\" started in ", directory, "\n")
+  message(glue::glue("Project \"{name}\" started in {directory}\n"))
 
   # Change working directory to workflowr project
   if (change_wd) {
@@ -167,8 +182,6 @@ wflow_start <- function(directory,
 
   # Configure Git repository
   if (git) {
-    create_gitignore(directory, overwrite = overwrite)
-    project_files <- c(project_files, file.path(directory, ".gitignore"))
     if (git2r::in_repository(directory)) {
       warning("A .git directory already exists in ", directory)
     } else {
@@ -176,6 +189,10 @@ wflow_start <- function(directory,
       message("Git repository initialized.")
     }
     repo <- git2r::repository(directory)
+    # Set local user.name and user.email
+    if (!is.null(user.name) && !is.null(user.email)) {
+      git2r::config(repo, user.name = user.name, user.email = user.email)
+    }
     # Make the first workflowr commit
     git2r::add(repo, project_files, force = TRUE)
     status <- git2r::status(repo)
@@ -241,7 +258,7 @@ check_git_config <- function(path) {
         "Run the following command in R, replacing the arguments\n",
         "with your name and email address, and then re-run `wflow_start`:\n",
         "\n",
-        'git2r::config(global = TRUE, user.name = "Your Name", user.email = "youremailaddress")',
+        'wflow_git_config(user.name = "Your Name", user.email = "email@domain")',
         call. = FALSE)
   }
 }

@@ -16,41 +16,11 @@
 # non-existing.
 #
 obtain_existing_path <- function(path) {
-  if (path == "") {
-    return(normalizePath("."))
-  } else if (dir.exists(path)) {
-    return(normalizePath(path))
+  if (dir.exists(path)) {
+    return(absolute(path))
   } else {
-    parts <- stringr::str_split(path, pattern = .Platform$file.sep)[[1]]
-    newpath <- paste(parts[-length(parts)],
-                     collapse = .Platform$file.sep)
-    # print(newpath)
-    return(obtain_existing_path(newpath))
+    return(obtain_existing_path(dirname(path)))
   }
-}
-
-# Run diff between two files.
-#
-# tools::Rdiff runs `diff` between two files. Unfortunately it sends messages
-# with `cat`, which makes it difficult to control its output programmatically.
-# This is a simple wrapper that returns the results as a character vector.
-#
-diff_file <- function(from, to) {
-  # Fail gracefully if `diff` not available on Windows
-  if (.Platform$OS.type == "windows") {
-    if (Sys.which("diff") == "") {
-      stop(call. = FALSE,
-           wrap(
-             "In order to use this workflowr function on Windows, you need to
-             download and install Rtools available at the link below:
-
-             https://cran.r-project.org/bin/windows/Rtools/"
-             ))
-    }
-  }
-  ignore <- utils::capture.output(
-    diffs <- tools::Rdiff(from = from, to = to, Log = TRUE))
-  return(diffs$out)
 }
 
 # Wrap long messages
@@ -71,7 +41,7 @@ to_html <- function(files, outdir = NULL) {
   html <- stringr::str_replace(files, "[Rr]md$", "html")
   if (!is.null(outdir)) {
     # Remove trailing slash if present
-    outdir <- remove_trailing_slash(outdir)
+    outdir <- stringr::str_replace(outdir, "/$", "")
     # Only prepend outdir if it's not "." for current working directory
     if (outdir == ".") {
       html <- basename(html)
@@ -82,147 +52,185 @@ to_html <- function(files, outdir = NULL) {
   return(html)
 }
 
-# A vectorized form of relpath.
+# Get an absolute path while handling cross-platform filepath issues
+#
+# path - a vector of paths
+absolute <- function(path) {
+  if (is.null(path)) return(path)
+  if (all(is.na(path))) return(path)
+
+  if (!is.character(path))
+    stop("path must be NULL or a character vector")
+
+  # Using normalizePath is frustrating because of its differences on Windows,
+  # but it is the easiest way to resolve symlinks. Note that it only resolves
+  # symlinks if the file or directory exists.
+  newpath <- normalizePath(path, winslash = "/", mustWork = FALSE)
+
+  # On Windows **only**, NA gets appended to path. Ensure that any NAs are
+  # returned as NA
+  newpath[is.na(path)] <- NA
+
+  # On Windows **only**, normalizePath doesn't strip trailing slash. This is
+  # presumably due to the edge case of the homedrive, i.e. "C:/" is a valid path
+  # but not "C:". If this function manually removes the trailing slash, then the
+  # drive, e.g. "C:", gets returned as the current working directory.
+  # Fortunately R.utils::getAbsolutePath is smarter than normalizePath (it
+  # strips the trailing slash expect when the path is to the root of a drive),
+  # so this does not need to be explicitly performed.
+
+  # normalizePath does not return an absolute path for a non-existent file or
+  # directory, e.g. `normalizePath("a")` returns `"a"`.
+  newpath <- R.utils::getAbsolutePath(newpath)
+  # The original filepaths are added as the "names" attribute when there is more
+  # than one filepath. Remove them.
+  attributes(newpath) <- NULL
+
+  return(newpath)
+}
+
+# Get a relative path while handling cross-platform filepath issues
 #
 # path - a vector of paths
 #
 # start - a single starting path to be relative to
-#
-# Both path and start will be passed through normalizePath to resolve relative
-# paths to existing directories.
-relpath_vec <- function(path, start = NULL) {
-  if (!(is.character(path) && length(path) >= 1))
-    stop("path must be a character vector")
-  if (!(is.null(start) || (is.character(start) && length(start) == 1)))
-    stop("start must be NULL or a 1-element character vector")
+relative <- function(path, start = getwd()) {
+  if (is.null(path)) return(path)
+  if (all(is.na(path))) return(path)
 
-  p <- normalizePath(path, mustWork = FALSE)
-  if (!is.null(start)) {
-    start <- normalizePath(start, mustWork = FALSE)
-  }
-  o <- character(length = length(p))
-  for (i in seq_along(path)) {
-    o[i] <- relpath(path = p[i], start = start)
-  }
-  return(o)
+  if (!is.character(path))
+    stop("path must be NULL or a character vector")
+  if (!(is.character(start) && length(start) == 1))
+    stop("start must be a character vector of length 1")
+
+  newpath <- R.utils::getRelativePath(absolute(path),
+                                      relativeTo = absolute(start))
+  # The original filepaths are added as the "names" attribute when there is more
+  # than one filepath. Remove them.
+  attributes(newpath) <- NULL
+
+  return(newpath)
 }
 
-# Return a relative version of a path
-#
-# This is a port of the Python function os.path.relpath. I couldn't find an
-# equivalent. If you know of an available function in a lightweight dependency,
-# please let me know.
-#
-# Description from Python docs: Return a relative filepath to path either from
-# the current directory or from an optional start directory. This is a path
-# computation: the filesystem is not accessed to confirm the existence or nature
-# of path or start.
-#
-# Note on this implementation:
-#  * Not vectorized.
-#  * Expects absolute paths with no tilde.
-#
-# https://docs.python.org/3.5/library/os.path.html#os.path.relpath
-# https://github.com/python/cpython/blob/3.5/Lib/posixpath.py#L431
-# https://github.com/python/cpython/blob/3.5/Lib/test/test_posixpath.py#L483
-relpath <- function(path, start = NULL) {
-  if (is.null(path)) return(NULL)
-  if (is.na(path)) return(NA)
-  if (!(is.character(path) && length(path) == 1))
-    stop("path must be a character vector")
-  if (!(is.null(start) || (is.character(start) && length(start) == 1)))
-    stop("start must be NULL or a 1-element character vector")
-  if (any(stringr::str_sub(c(path, start), 1, 1) == "~"))
-    stop("arguments path and start cannot begin with a tilde")
-
-  curdir <- "."
-  sep <- .Platform$file.sep
-  pardir <- ".."
-
-  if (is.null(start))
-    start <- getwd()
-
-  if (.Platform$OS.type == "windows") {
-    start <- remove_trailing_slash(start)
-    start_list <- unlist(stringr::str_split(start, sep))
-    path <- remove_trailing_slash(path)
-    path_list <- unlist(stringr::str_split(path, sep))
+# Because ~ maps to ~/Documents on Windows, need a reliable way to determine the
+# user's home directory on Windows.
+# https://cran.r-project.org/bin/windows/base/rw-FAQ.html#What-are-HOME-and-working-directories_003f
+# https://stat.ethz.ch/pipermail/r-help/2007-March/128221.html
+# https://github.com/ropensci/git2r/pull/320#issuecomment-367038961
+get_home <- function() {
+  # If non-Windows, it is straightforward
+  if (.Platform$OS.type != "windows") {
+    home <- "~"
+    return(absolute(home))
   } else {
-    start_list <- unlist(stringr::str_split(start, sep))[-1]
-    path_list <- unlist(stringr::str_split(path, sep))[-1]
-  }
-  # Work out how much of the filepath is shared by start and path.
-  i <- length(commonprefix(start_list, path_list))
-
-  rel_list <- rep(pardir, length(start_list) - i)
-  if (length(path_list) > i)
-    rel_list <- c(rel_list, path_list[(i + 1):length(path_list)])
-  if (length(rel_list) == 0)
-    return(curdir)
-  return(paste(rel_list, collapse = sep))
-}
-
-# "Given a list of pathnames, returns the longest common leading component"
-#
-# Note: This version is only inspired by the original Python one. The Python
-# version can handle a list of strings or a list of lists of strings because the
-# enumerate function works on either. The unit tests are for a list of strings,
-# but relpath uses a list of lists of strings. Since it is awkward to try and do
-# both in R, this only works on a list of character vectors. Also, it is
-# modified for the specific use case of comparing exactly two character vectors.
-#
-# https://docs.python.org/3.5/library/os.path.html#os.path.commonprefix
-# https://github.com/python/cpython/blob/3.5/Lib/genericpath.py#L68
-# https://github.com/python/cpython/blob/3.5/Lib/test/test_genericpath.py#L32
-commonprefix <- function(p1, p2) {
-  stopifnot(is.character(p1), is.character(p2))
-  if (length(p1) == 0 || length(p2) == 0)
-    return(character())
-  len_min <- pmin(length(p1), length(p2))
-  incommon <- character()
-  for (i in seq(len_min)) {
-    if (p1[i] == p2[i]) {
-      incommon <- c(incommon, p1[i])
-    } else {
-      break
+    home <- Sys.getenv("USERPROFILE")
+    home <- absolute(home)
+    if (!dir.exists(home)) {
+      stop(wrap("Unable to determine user's home directory on Windows: ", home))
     }
+    return(home)
   }
-  return(incommon)
 }
 
-# Override default normalizePath options for working with filepaths on Windows
-normalizePath <- function(path, winslash = "/", mustWork = NA) {
-  p <- base::normalizePath(path = path, winslash = winslash, mustWork = mustWork)
-  # On Windows **only**, NA gets appended to path. Ensure that any NAs are
-  # returned as NA
-  p[is.na(path)] <- NA
-  return(p)
+# Detect if a filepath contains any globbing characters: *, ?, [...]
+detect_glob <- function(paths) {
+  stringr::str_detect(paths, pattern = "\\*") |
+    stringr::str_detect(paths, pattern = "\\?") |
+    stringr::str_detect(paths, pattern = "\\[.+\\]")
 }
 
-# On Windows **only**, normalizePath doesn't strip trailing slash, so need a
-# dedicated function.
-remove_trailing_slash <- function(x) {
-  stopifnot(is.character(x))
-  for (i in seq_along(x)) {
-    len <- nchar(x[i])
-    if (stringr::str_sub(x[i], len, len) == "/") {
-      x[i] <- stringr::str_sub(x[i], 1, len - 1)
-    }
+# Perform file globbing
+#
+# Sys.glob works great on filepaths with globbing characters, but it's behavior
+# for non-globs depends on 1) if the filepath exists, 2) if the path is to a
+# file or a directory (with or without a trailing slash), and 3) which OS the
+# command is run on. To avoid these edge cases, this function only runs Sys.glob
+# on filepaths that contain globbing characters.
+glob <- function(paths) {
+  is_glob <- detect_glob(paths)
+  expanded <- Map(Sys.glob, paths)
+  invalid_glob <- is_glob & vapply(expanded, length, numeric(1)) == 0
+  if (any(invalid_glob))
+    stop("Invalid file glob: ", paths[invalid_glob][1], call. = FALSE)
+  result <- ifelse(is_glob, expanded, paths)
+  result <- unique(unlist(result))
+  return(result)
+}
+
+# If the user doesn't define a URL for a GitHub repo in the YAML header or
+# _workflowr.yml, determine the URL from the remote "origin". If this remote
+# doesn't exist, return NA.
+get_github_from_remote <- function(path) {
+  # HTTPS: https://github.com/jdblischak/workflowr.git
+  # SSH: git@github.com:jdblischak/workflowr.git
+  if (!git2r::in_repository(path = path)) {
+    return(NA_character_)
   }
-  return(x)
+  r <- git2r::repository(path = path, discover = TRUE)
+  remotes <- git2r::remotes(r)
+  if (!("origin" %in% remotes)) {
+    return(NA_character_)
+  }
+  origin <- git2r::remote_url(r, remote = "origin")
+  if (!stringr::str_detect(origin, "github")) {
+    return(NA_character_)
+  }
+  github <- origin
+  # Remove trailing .git
+  github <- stringr::str_replace(github, "\\.git$", "")
+  # If SSH, replace with HTTPS URL
+  github <- stringr::str_replace(github, "^git@github.com:", "https://github.com/")
+  return(github)
 }
 
-# Convert any instance of \\ in a Windows path to /
-convert_windows_paths <- function(x) {
-  if (is.null(x)) return(x)
-  if (all(is.na(x))) return(x)
+# Get output directory if it exists
+get_output_dir <- function(directory, yml = "_site.yml") {
 
-  stringr::str_replace_all(x, pattern = "\\\\", replacement = "/")
+  stopifnot(dir.exists(directory))
+
+  site_fname <- file.path(directory, "_site.yml")
+  if (!file.exists(site_fname)) {
+    return(NULL)
+  }
+  site_yml <- yaml::yaml.load_file(site_fname)
+
+  if (is.null(site_yml$output_dir)) {
+    output_dir <- directory
+  } else {
+    output_dir <- file.path(directory, site_yml$output_dir)
+    dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
+    output_dir <- absolute(output_dir)
+  }
+
+  return(output_dir)
 }
 
-# Override default tempfile to not use \\ in paths on Windows. Unlike
-# normalizePath, there is no argument to change this default behavior.
-tempfile <- function(pattern = "file", tmpdir = tempdir(), fileext = "") {
-  tfile <- base::tempfile(pattern = pattern, tmpdir = tmpdir, fileext = fileext)
-  return(convert_windows_paths(tfile))
+# Convert named nested list to data frame
+status_to_df <- function(s) {
+  stopifnot(class(s) == "git_status")
+  s_vec <- unlist(s)
+  if (length(s_vec) > 0) {
+    categories <- stringr::str_split(names(s_vec), pattern = "\\.", n = 2,
+                                     simplify = TRUE)
+    d <- data.frame(categories, s_vec, stringsAsFactors = FALSE)
+    colnames(d) <- c("state1", "state2", "file")
+  } else {
+    d <- data.frame(state1 = character(0), state2 = character(0),
+                    file = character(0))
+  }
+
+  return(d)
+}
+
+# Convert data frame to git_status
+df_to_status <- function(d) {
+  stopifnot(is.data.frame(d),
+            colnames(d) == c("state1", "state2", "file"))
+  status <- list(staged = list(), unstaged = list(), untracked = list())
+  for (i in seq_along(d$file)) {
+    status[[d$state1[i]]] <- c(status[[d$state1[i]]], list(d$file[i]))
+    names(status[[d$state1[i]]])[length(status[[d$state1[i]]])] <- d$state2[i]
+  }
+  class(status) <- "git_status"
+  return(status)
 }

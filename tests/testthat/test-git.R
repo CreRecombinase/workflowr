@@ -3,12 +3,14 @@ context("git")
 # Test get_committed_files -----------------------------------------------------
 
 # Create temp Git directory
-dir_git <- workflowr:::tempfile("test-get_committed_files-", tmpdir = workflowr:::normalizePath("/tmp"))
+dir_git <- tempfile("test-get_committed_files-")
 dir.create(dir_git)
+dir_git <- workflowr:::absolute(dir_git)
 on.exit(unlink(dir_git, recursive = TRUE, force = TRUE))
 # Initialize Git repo
 git2r::init(dir_git)
 r <- git2r::repository(dir_git)
+git2r::config(r, user.name = "Test Name", user.email = "test@email")
 
 test_that("get_committed_files fails if no files have been committed", {
   expect_error(actual <- workflowr:::get_committed_files(r),
@@ -47,36 +49,4 @@ test_that("get_committed_files stops reporting files after they are removed", {
   expected <- basename(c(f[2], f2))
   actual <- workflowr:::get_committed_files(r)
   expect_identical(actual, expected)
-})
-
-# Test create_gitignore --------------------------------------------------------
-
-# Create a temp directory
-tmp_dir <- workflowr:::tempfile("test-create_gitignore-", tmpdir = workflowr:::normalizePath("/tmp"))
-dir.create(tmp_dir)
-# Cleanup
-on.exit(unlink(tmp_dir, recursive = TRUE, force = TRUE))
-
-# Create a .gitignore file
-workflowr:::create_gitignore(tmp_dir)
-fname_expected <- file.path(tmp_dir, ".gitignore")
-
-test_that(".gitignore file was created", {
-  expect_true(file.exists(fname_expected))
-})
-
-test_that(".gitignore is not overwritten by default", {
-  mod_time_pre <- file.mtime(fname_expected)
-  Sys.sleep(2)
-  expect_warning(workflowr:::create_gitignore(tmp_dir))
-  mod_time_post <- file.mtime(fname_expected)
-  expect_true(mod_time_post == mod_time_pre)
-})
-
-test_that(".gitignore is overwritten if forced", {
-  mod_time_pre <- file.mtime(fname_expected)
-  Sys.sleep(2)
-  expect_silent(workflowr:::create_gitignore(tmp_dir,overwrite = TRUE))
-  mod_time_post <- file.mtime(fname_expected)
-  expect_true(mod_time_post > mod_time_pre)
 })

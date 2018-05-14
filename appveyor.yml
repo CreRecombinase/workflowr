@@ -1,0 +1,81 @@
+# DO NOT CHANGE the "init" and "install" sections below
+
+# Download script file from GitHub
+init:
+  - git config --global user.name "Travis CI"
+  - git config --global user.email "testing@fake.domain"
+  - ps: |
+          $ErrorActionPreference = "Stop"
+          Invoke-WebRequest http://raw.github.com/krlmlr/r-appveyor/master/scripts/appveyor-tool.ps1 -OutFile "..\appveyor-tool.ps1"
+          Import-Module '..\appveyor-tool.ps1'
+
+install:
+  ps: Bootstrap
+
+cache:
+  - C:\RLibrary
+  - C:\Program Files (x86)\Pandoc\
+
+# Adapt as necessary starting from here
+
+branches:
+  only:
+    - master
+    - dev
+
+# Install Pandoc
+# source: https://github.com/krlmlr/r-appveyor/issues/82#issuecomment-261695154
+before_test:
+  - ps: >-
+      if (-Not (Test-Path "C:\Program Files (x86)\Pandoc\")) {
+        cinst pandoc
+      }
+  - ps: $env:Path += ";C:\Program Files (x86)\Pandoc\"
+  - pandoc -v
+
+environment:
+  global:
+    USE_RTOOLS: true
+    # Do not skip tests with skip_on_cran()
+    NOT_CRAN: true
+
+  matrix:
+  # 64-bit
+  - R_VERSION: release
+    platform: x64
+    R_ARCH: x64
+
+  # 32-bit
+  - R_VERSION: release
+    platform: x86
+    R_ARCH: i386
+
+
+build_script:
+  - travis-tool.sh install_deps
+
+test_script:
+  - travis-tool.sh run_tests
+
+on_failure:
+  - 7z a failure.zip *.Rcheck\*
+  - appveyor PushArtifact failure.zip
+
+artifacts:
+  - path: '*.Rcheck\**\*.log'
+    name: Logs
+
+  - path: '*.Rcheck\**\*.out'
+    name: Logs
+
+  - path: '*.Rcheck\**\*.fail'
+    name: Logs
+
+  - path: '*.Rcheck\**\*.Rout'
+    name: Logs
+
+  - path: '\*_*.tar.gz'
+    name: Bits
+
+  - path: '\*_*.zip'
+    name: Bits
