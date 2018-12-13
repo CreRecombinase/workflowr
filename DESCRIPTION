@@ -1,8 +1,8 @@
 Package: workflowr
 Type: Package
 Title: A Framework for Reproducible and Collaborative Data Science
-Date: 2018-04-20
-Version: 1.0.1
+Date: 2018-07-06
+Version: 1.1.1
 Authors@R: c(
     person("John", "Blischak", role = c("aut", "cre"),
            email = "jdblischak@uchicago.edu"),
@@ -14,18 +14,18 @@ Description: Combines literate programming ('knitr' and 'rmarkdown') and version
 URL: https://github.com/jdblischak/workflowr
 BugReports: https://github.com/jdblischak/workflowr/issues
 Depends:
-    R (>= 3.2.5),
-    rmarkdown (>= 1.7)
+    R (>= 3.2.5)
 License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
 Imports:
     callr,
     getPass,
-    git2r (<= 0.21.0),
+    git2r,
     glue,
-    knitr,
+    knitr (>= 1.18),
     methods,
+    rmarkdown (>= 1.7),
     rprojroot,
     rstudioapi,
     R.utils,
@@ -34,7 +34,7 @@ Imports:
     utils,
     whisker,
     yaml
-RoxygenNote: 6.0.1
+RoxygenNote: 6.0.1.9000
 Suggests:
     covr,
     devtools,
