@@ -44,8 +44,16 @@
 #' \item \bold{git}: The relative path to the \code{.git} directory that
 #' contains the history of the Git repository.
 #'
+#' \item \bold{site_yml}: \code{TRUE} if the configuration file \code{_site.yml}
+#' has uncommitted changes, otherwise \code{FALSE}.
+#'
+#' \item \bold{wflow_yml}: \code{TRUE} if the configuration file
+#' \code{_workflowr.yml} has uncommitted changes, otherwise \code{FALSE}. If the
+#' file does not exist, the result is \code{NULL}. If the file was recently
+#' deleted and not yet committed to Git, then it will be \code{TRUE}.
+#'
 #' \item \bold{status}: A data frame with detailed information on the status of
-#' each file (see below).
+#' each R Markdown file (see below).
 #'
 #' }
 #'
@@ -58,6 +66,8 @@
 #' to the patterns in the file \code{.gitignore}.
 #'
 #' \item \bold{mod_unstaged}: The R Markdown file has unstaged modifications.
+#'
+#' \item \bold{conflicted}: The R Markdown file has merge conflicts.
 #'
 #' \item \bold{mod_staged}: The R Markdown file has staged modifications.
 #'
@@ -99,10 +109,10 @@ wflow_status <- function(files = NULL, project = ".") {
   if (!is.null(files)) {
     if (!(is.character(files) && length(files) > 0))
       stop("files must be NULL or a character vector of filenames")
-    if (any(dir.exists(files)))
+    if (any(fs::dir_exists(files)))
       stop("files cannot include a path to a directory")
     files <- glob(files)
-    if (!all(file.exists(files)))
+    if (!all(fs::file_exists(files)))
       stop("Not all files exist. Check the paths to the files")
     # Change filepaths to relative paths
     files <- relative(files)
@@ -115,7 +125,7 @@ wflow_status <- function(files = NULL, project = ".") {
 
   if (!(is.character(project) && length(project) == 1))
     stop("project must be a one element character vector")
-  if (!dir.exists(project))
+  if (!fs::dir_exists(project))
     stop("project does not exist.")
   project <- absolute(project)
 
@@ -134,21 +144,27 @@ wflow_status <- function(files = NULL, project = ".") {
   if (length(files_analysis) == 0)
     stop("files did not include any analysis files")
 
-  # Obtain status of each file
+  # Obtain status of each R Markdown file
   r <- git2r::repository(o$git)
   s <- git2r::status(r, ignored = TRUE)
-  # Convert from a list of lists of paths relative to the .git directory to a
-  # list of character vectors of absolute paths
-  s <- lapply(s, function(x) file.path(git2r_workdir(r), as.character(x)))
-  # Convert from absolute paths to paths relative to working directory
-  s <- lapply(s, relative)
-  # Determine status of each analysis file in the Git repository. Each status
-  # is a logical vector.
-  ignored <- files_analysis %in% s$ignored
-  mod_unstaged <- files_analysis %in% s$unstaged
-  mod_staged <- files_analysis %in% s$staged
+  s_df <- status_to_df(s)
+  # Fix file paths
+  s_df$file <- file.path(git2r_workdir(r), s_df$file)
+  s_df$file <- relative(s_df$file)
+  # Categorize all files by git status
+  f_ignored <- s_df$file[s_df$status == "ignored"]
+  f_unstaged <- s_df$file[s_df$status == "unstaged"]
+  f_conflicted <- s_df$file[s_df$substatus == "conflicted"]
+  f_staged <- s_df$file[s_df$status == "staged"]
+  f_untracked <- s_df$file[s_df$status == "untracked"]
+  # Determine status of each analysis file (i.e. Rmd) in the Git repository.
+  # Each status is a logical vector.
+  ignored <- files_analysis %in% f_ignored
+  mod_unstaged <- files_analysis %in% f_unstaged
+  conflicted <- files_analysis %in% f_conflicted
+  mod_staged <- files_analysis %in% f_staged
   tracked <- files_analysis %in% setdiff(files_analysis,
-                                         c(s$untracked, s$ignored))
+                                         c(f_untracked, f_ignored))
   files_committed <- get_committed_files(r)
   files_committed <- relative(files_committed)
   committed <- files_analysis %in% files_committed
@@ -173,7 +189,18 @@ wflow_status <- function(files = NULL, project = ".") {
   # Scratch file. Any untracked file that is not specifically ignored.
   scratch <- !tracked & !ignored
 
-  o$status <- data.frame(ignored, mod_unstaged, mod_staged, tracked,
+  # Determine if _site.yml has been edited
+  o$site_yml <- FALSE
+  site_yml_path <- relative(file.path(o$analysis, "_site.yml"))
+  if (site_yml_path %in% s_df$file) o$site_yml <- TRUE
+
+  # Determine if _workflowr.yml has been edited
+  o$wflow_yml <- FALSE
+  wflow_yml_path <- relative(file.path(o$root, "_workflowr.yml"))
+  if (!file.exists(wflow_yml_path)) o$wflow_yml <- NULL
+  if (wflow_yml_path %in% s_df$file) o$wflow_yml <- TRUE
+
+  o$status <- data.frame(ignored, mod_unstaged, conflicted, mod_staged, tracked,
                          committed, published, mod_committed, modified,
                          unpublished, scratch,
                          row.names = files_analysis)
@@ -234,6 +261,16 @@ To commit your changes without publishing them yet, use `wflow_git_commit()`.",
     cat(wrap(m))
   }
   cat("\n")
+
+  if (x$site_yml) {
+    site_yml_path <- relative(file.path(x$analysis, "_site.yml"))
+    cat(glue::glue("\n\nThe config file {site_yml_path} has been edited.\n\n"))
+  }
+
+  if (!is.null(x$wflow_yml) && x$wflow_yml) {
+    wflow_yml_path <- relative(file.path(x$root, "_workflowr.yml"))
+    cat(glue::glue("\n\nThe config file {wflow_yml_path} has been edited.\n\n"))
+  }
 
   # It's a convention for S3 print methods to invisibly return the original
   # object, e.g. base::print.summaryDefault and stats:::print.lm. I don't

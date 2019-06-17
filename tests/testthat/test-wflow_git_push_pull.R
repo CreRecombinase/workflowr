@@ -31,24 +31,15 @@ test_that("check_branch fails if HEAD does *not* point to a branch", {
 
 # Test check_remote ------------------------------------------------------------
 
-test_that("check_remote sends warning if remote is HTTPS URL", {
-  expect_warning(check_remote("https://github.com/user/repo.git", character()),
-                 "Instead of specifying the URL to the remote repository")
-})
-
-test_that("check_remote sends warning if remote is SSH URL", {
-  expect_warning(check_remote("git@github.com:user/repo.git", character()),
-                 "Instead of specifying the URL to the remote repository")
-})
-
-test_that("check_remote fails if remote not specified and no remote repositories", {
+test_that("check_remote throws error if no remote repositories available", {
   expect_error(check_remote(NULL, character()),
                "No remote repositories are available")
-})
-
-test_that("check_remote fails if remote is specified and no remote repositories", {
   expect_error(check_remote("origin", character()),
-               "You have specifed a remote")
+               "No remote repositories are available")
+  expect_error(check_remote("https://github.com/user/repo.git", character()),
+               "No remote repositories are available.")
+  expect_error(check_remote("git@github.com:user/repo.git", character()),
+               "No remote repositories are available.")
 })
 
 # Add a remote
@@ -57,6 +48,10 @@ remote_avail <- wflow_git_remote("origin", "user", "repo", verbose = FALSE,
 
 test_that("check_remote fails if remote is not one of the available repositories", {
   expect_error(check_remote("random", remote_avail),
+               "The remote you specified is not one of the remotes available")
+  expect_error(check_remote("https://github.com/user/repo.git", remote_avail),
+               "The remote you specified is not one of the remotes available")
+  expect_error(check_remote("git@github.com:user/repo.git", remote_avail),
                "The remote you specified is not one of the remotes available")
 })
 
@@ -136,10 +131,36 @@ test_that("warn_branch_mismatch warns if local and remote branch do *not* match"
                "The remote branch is \"a\", but the current local branch is \"b\".")
 })
 
+# Test get_remote_protocol -----------------------------------------------------
+
+test_that("get_remote_protocol can detect HTTPS remote", {
+  protocol <- get_remote_protocol(remote = "https://github.com/user/repo.git",
+                                  remote_avail = remote_avail)
+  expect_identical(protocol, "https")
+})
+
+test_that("get_remote_protocol can detect HTTPS remote by alias", {
+  protocol <- get_remote_protocol(remote = "upstream",
+                                  remote_avail = remote_avail)
+  expect_identical(protocol, "https")
+})
+
+test_that("get_remote_protocol can detect SSH remote", {
+  protocol <- get_remote_protocol(remote = "git@github.com:user/repo.git",
+                                  remote_avail = remote_avail)
+  expect_identical(protocol, "ssh")
+})
+
+test_that("get_remote_protocol fails for unknown protocol", {
+  expect_error(get_remote_protocol(remote = "xyz:user/repo.git",
+                                   remote_avail = remote_avail),
+               "The URL to the remote repository is using an unknown protocol")
+})
+
 # Test authenticate_git --------------------------------------------------------
 
 test_that("authenticate_git can create HTTPS credentials", {
-  cred <- authenticate_git(remote = "upstream", remote_avail = remote_avail,
+  cred <- authenticate_git(protocol = "https",
                            username = "fakeuser", password = "fakepass")
   expect_true(class(cred) == "cred_user_pass")
   expect_true(git2r_slot(cred, "username") == "fakeuser")
@@ -147,17 +168,29 @@ test_that("authenticate_git can create HTTPS credentials", {
 })
 
 test_that("authenticate_git returns NULL for SSH remotes", {
-  cred <- authenticate_git(remote = "git@github.com:user/repo.git",
-                           remote_avail = remote_avail)
+  cred <- authenticate_git(protocol = "ssh")
   expect_true(is.null(cred))
 })
 
-test_that("authenticate_git fails for unknown protocol", {
-  expect_error(authenticate_git(remote = "xyz:user/repo.git",
-                                remote_avail = remote_avail),
-               "The URL to the remote repository is using an unknown protocol")
+test_that("authenticate_git only accepts https or ssh", {
+  expect_error(authenticate_git(protocol = "xyz"))
 })
 
+test_that("authenticate_git fails if no username provided for https", {
+
+  if (interactive()) skip("Interactive session")
+
+  expect_error(authenticate_git(protocol = "https", password = "fakepass"),
+               "No username was specified")
+})
+
+test_that("authenticate_git fails if no password provided for https", {
+
+  if (interactive()) skip("Interactive session")
+
+  expect_error(authenticate_git(protocol = "https", username = "fakeuser"),
+               "No password was specified")
+})
 
 # Test wflow_git_push and wflow_git_pull ---------------------------------------
 
@@ -170,8 +203,10 @@ test_that("wflow_git_push can run in dry-run mode", {
   expect_identical(result$branch, "master")
   expect_identical(result$force, FALSE)
   expect_identical(result$dry_run, TRUE)
+  expect_identical(result$protocol, "https")
   # Test print method
   expect_true("  $ git push origin master" %in% utils::capture.output(result))
+  expect_true("Using the HTTPS protocol" %in% utils::capture.output(result))
 })
 
 test_that("wflow_git_pull can run in dry-run mode", {
@@ -179,8 +214,32 @@ test_that("wflow_git_pull can run in dry-run mode", {
   expect_identical(result$remote, "origin")
   expect_identical(result$branch, "master")
   expect_identical(result$dry_run, TRUE)
+  expect_identical(result$protocol, "https")
   # Test print method
   expect_true("  $ git pull origin master" %in% utils::capture.output(result))
+  expect_true("Using the HTTPS protocol" %in% utils::capture.output(result))
+})
+
+test_that("wflow_git_push/pull fail early if try to use SSH protocol when not supported", {
+
+  wflow_git_remote(remote = "testssh", user = "user", repo = "repo",
+                   protocol = "ssh", project = site_dir)
+
+  if (git2r::libgit2_features()$ssh) {
+    expect_silent(wflow_git_push(remote = "testssh", dry_run = TRUE,
+                                 project = site_dir))
+    expect_silent(wflow_git_pull(remote = "testssh", dry_run = TRUE,
+                                 project = site_dir))
+  } else {
+    expect_error(wflow_git_push(remote = "testssh", dry_run = TRUE,
+                                project = site_dir),
+                 "You cannot use the SSH protocol")
+    expect_error(wflow_git_pull(remote = "testssh", dry_run = TRUE,
+                                project = site_dir),
+                 "You cannot use the SSH protocol")
+  }
+
+  wflow_git_remote(remote = "testssh", action = "remove", project = site_dir)
 })
 
 # Test print.wflow_git_pull ----------------------------------------------------

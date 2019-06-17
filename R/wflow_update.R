@@ -1,6 +1,11 @@
 #' Update a workflowr project
 #'
-#' Update an existing workflowr project to workflowr 1.0.
+#' Update an existing workflowr project to workflowr 1.0. If you have an
+#' existing project built with a beta version of workflowr (pre-1.0.0), you can
+#' use \code{wflow_update} to obtain the latest features. However, if you like
+#' your current project the way it is, you can continue to use workflowr as you
+#' have been by getting the latest bug fixes from
+#' \href{https://jdblischak.github.io/workflowrBeta/}{workflowrBeta}.
 #'
 #' By default, \code{wflow_update} is run in \code{dry_run} mode so that no
 #' unwanted changes are made. Here's how to update an existing project to
@@ -49,7 +54,7 @@
 #' @examples
 #' \dontrun{
 #'
-#' # Preview the files to be udpated
+#' # Preview the files to be updated
 #' wflow_update()
 #' # Update the files
 #' wflow_update(dry_run = FALSE)
@@ -64,7 +69,7 @@ wflow_update <- function(dry_run = TRUE, project = ".") {
     stop("dry_run must be a one element logical vector. You entered: ", dry_run)
   if (!(is.character(project) && length(project) == 1))
     stop("project must be a one element character vector. You entered: ", project)
-  if (!dir.exists(project))
+  if (!fs::dir_exists(project))
     stop("project does not exist. You entered: ", project)
 
   project <- absolute(project)
@@ -152,7 +157,7 @@ wflow_update <- function(dry_run = TRUE, project = ".") {
     "# See ?wflow_html to learn how to customize workflowr."
   )
 
-  if (!file.exists(wflow_yml)) {
+  if (!fs::file_exists(wflow_yml)) {
     files_updated <- c(files_updated, wflow_yml)
     if (!dry_run) writeLines(wflow_yml_lines, wflow_yml)
   }
@@ -160,7 +165,7 @@ wflow_update <- function(dry_run = TRUE, project = ".") {
   # footer.html ----------------------------------------------------------------
 
   footer <- file.path(p$analysis, "include", "footer.html")
-  if (file.exists(footer)) {
+  if (fs::file_exists(footer)) {
     footer_in <- readLines(footer)
     footer_out <- footer_in
     footer_out <- stringr::str_replace(footer_out,
@@ -175,9 +180,9 @@ wflow_update <- function(dry_run = TRUE, project = ".") {
   # chunks.R -------------------------------------------------------------------
 
   chunks <- file.path(p$analysis, "chunks.R")
-  if (file.exists(chunks)) {
+  if (fs::file_exists(chunks)) {
     files_updated <- c(files_updated, chunks)
-    if (!dry_run) file.remove(chunks)
+    if (!dry_run) fs::file_delete(chunks)
   }
 
   # Output ---------------------------------------------------------------------

@@ -22,7 +22,7 @@
 #' }
 #' @export
 extract_commit <- function(path, num) {
-  stopifnot(file.exists(path),
+  stopifnot(fs::file_exists(path),
             is.numeric(num),
             num == trunc(num),
             num > 0)
@@ -55,7 +55,7 @@ check_git_config <- function(path, custom_message = "this function") {
   stopifnot(is.character(path))
   # Only look for local configuration file if the directory exists and it is a
   # Git repo
-  if (dir.exists(path)) {
+  if (fs::dir_exists(path)) {
     look_for_local <- git2r::in_repository(path)
   } else {
     look_for_local <- FALSE
@@ -83,6 +83,34 @@ check_git_config <- function(path, custom_message = "this function") {
       run ", custom_message, ". To do this, run the following command in R,
       replacing the arguments with your name and email address:\n\n
       wflow_git_config(user.name = \"Your Name\", user.email = \"email@domain\")"),
+      call. = FALSE)
+  }
+}
+
+# Check for staged changes
+#
+# path character. Path to repository
+#
+# If staged changes are detected, stops the program.
+check_staged_changes <- function(path, custom_message = "this function") {
+  stopifnot(is.character(path))
+
+  r <- git2r::repository(path, discover = TRUE)
+  git_status <- git2r::status(r)
+
+  if (length(git_status$staged) == 0) {
+    return(invisible())
+  } else {
+    # Format files
+    files_staged <- as.character(git_status$staged)
+    files_staged <- file.path(git2r_workdir(r), files_staged)
+    files_staged <- relative(files_staged)
+    files_staged <- utils::capture.output(dput(files_staged))
+    stop(wrap(
+      "The Git repository has staged changes. You must decide if you want to
+      commit these changes first before you run ", custom_message, ". To do
+      this, run the following command in R:\n\n wflow_git_commit(",
+      files_staged, ")"),
       call. = FALSE)
   }
 }
@@ -264,37 +292,25 @@ check_branch <- function(git_head) {
 
 # Check remote repository.
 #
-# If there are no remotes available, confirm that the remote provided is a URL.
+# If there are no remotes available, throw an error.
 #
 # If a remote is specified, confirm it exists.
 #
 # remote - character vector or NULL
 # remote_avail - a named character vector of remote URLs
 check_remote <- function(remote, remote_avail) {
+
   if (!(is.null(remote) || is.character(remote)))
     stop("remote must be NULL or character vector")
+
   if (!is.character(remote_avail))
     stop("remote_avail must be a character vector")
 
-  # Fail early if no remotes (and the remote argument isn't a URL)
+  # If there are no remotes available, throw an error.
   if (length(remote_avail) == 0) {
-    if (is.null(remote)) {
-      m <-
-        "No remote repositories are available. Run ?wflow_git_remote to learn how
-        to configure this."
-      stop(wrap(m), call. = FALSE)
-    } else if (any(stringr::str_detect(remote, c("https", "git@")))) {
-      m <-
-        "Instead of specifying the URL to the remote repository, you can save
-        it as a remote. Run ?wflow_git_remote for details."
-      warning(wrap(m), call. = FALSE)
-      return()
-    } else {
-      m <-
-        "You have specifed a remote, but this remote repository has no remotes
-        set. Run ?wflow_git_remote to learn how to configure this."
-      stop(wrap(m), call. = FALSE)
-    }
+    m <- "No remote repositories are available. Run ?wflow_git_remote to learn
+          how to configure this."
+    stop(wrap(m), call. = FALSE)
   }
 
   # Fail early if remote is specified but doesn't exist
@@ -377,28 +393,26 @@ warn_branch_mismatch <- function(remote_branch, local_branch) {
   }
 }
 
-# Authenticate with Git using either HTTPS or SSH
+# Determine if using HTTPS or SSH protocol
 #
-# remote - the name or URL of a remote repository
+# remote - the name or URL of a remote repository. Note: The upstream function
+# wflow_git_push()/pull() no longer accept direct URLs to a remote repository.
+# However, I'm leaving this functionality in this function since it doesn't hurt
+# anything and could be potentially useful in the future.
+#
 # remote_avail - a named character vector of remote URLs
-# username - GitHub username or NULL
-# password - GitHub password or NULL
-# dry_run - logical
-authenticate_git <- function(remote, remote_avail, username = NULL,
-                             password = NULL, dry_run = FALSE) {
+#
+# Return either "https" or "ssh"
+get_remote_protocol <- function(remote, remote_avail) {
   if (!(is.character(remote) && is.character(remote_avail)))
     stop("remote and remote_avail must be character vectors")
-  if (!(is.null(username) || (is.character(username) && length(username) == 1)))
-    stop("username must be NULL or a one-element character vector")
-  if (!(is.null(password) || (is.character(password) && length(password) == 1)))
-    stop("password must be NULL or a one-element character vector")
 
-  # Determine if using HTTPS or SSH protocol
   if (remote %in% names(remote_avail)) {
     url <- remote_avail[remote]
   } else {
     url <- remote
   }
+
   if (stringr::str_sub(url, 1, 5) == "https") {
     protocol <- "https"
   } else if (stringr::str_sub(url, 1, 4) == "git@") {
@@ -412,10 +426,28 @@ authenticate_git <- function(remote, remote_avail, username = NULL,
     stop(wrap(m), call. = FALSE)
   }
 
+  return(protocol)
+}
+
+# Authenticate with Git using either HTTPS or SSH
+#
+# protocol - either "https" or "ssh"
+# username - username or NULL
+# password - password or NULL
+# dry_run - logical
+authenticate_git <- function(protocol, username = NULL,
+                             password = NULL, dry_run = FALSE) {
+  if (!protocol %in% c("https", "ssh"))
+    stop("protocol must be either \"https\" or \"ssh\"")
+  if (!(is.null(username) || (is.character(username) && length(username) == 1)))
+    stop("username must be NULL or a one-element character vector")
+  if (!(is.null(password) || (is.character(password) && length(password) == 1)))
+    stop("password must be NULL or a one-element character vector")
+
   if (protocol == "https" && !dry_run) {
     if (is.null(username)) {
       if (interactive()) {
-        username <- readline("Please enter your GitHub username: ")
+        username <- readline("Please enter your username: ")
       } else {
         m <-
           "No username was specified. Either include the username in the
@@ -426,7 +458,7 @@ authenticate_git <- function(remote, remote_avail, username = NULL,
     }
     if (is.null(password)) {
       if (interactive()) {
-        password <- getPass::getPass("Please enter your GitHub password: ")
+        password <- getPass::getPass("Please enter your password: ")
       } else {
         m <-
           "No password was specified. Either include the password in the
@@ -449,4 +481,21 @@ authenticate_git <- function(remote, remote_avail, username = NULL,
     credentials <- NULL
   }
   return(credentials)
+}
+
+# Throw error if Git repository is locked
+check_git_lock <- function(r) {
+  stopifnot(class(r) == "git_repository")
+
+  index_lock <- file.path(git2r_workdir(r), ".git/index.lock")
+  if (fs::file_exists(index_lock)) {
+    stop(call. = FALSE, wrap(
+      "The Git repository is locked. This can happen if a Git command
+      previously crashed or if multiple Git commands were executed at the same
+      time. To fix this, you need to delete the file .git/index.lock. You can
+      do this by running the following in the R console:"),
+      "\n\n",
+      glue::glue("file.remove(\"{index_lock}\")")
+    )
+  }
 }

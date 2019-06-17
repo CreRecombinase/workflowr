@@ -5,7 +5,8 @@
 \title{Build the site}
 \usage{
 wflow_build(files = NULL, make = is.null(files), update = FALSE,
-  republish = FALSE, view = interactive(), seed = 12345, log_dir = NULL,
+  republish = FALSE, view = interactive(), clean_fig_files = FALSE,
+  delete_cache = FALSE, seed = 12345, log_dir = NULL,
   verbose = FALSE, local = FALSE, dry_run = FALSE, project = ".")
 }
 \arguments{
@@ -13,13 +14,14 @@ wflow_build(files = NULL, make = is.null(files), update = FALSE,
 the analysis directory with the extension Rmd or rmd. If \code{files} is
 \code{NULL}, the default behavior is to build all outdated files (see
 argument \code{make} below). Supports file
-\href{https://en.wikipedia.org/wiki/Glob_(programming)}{globbing}.}
+\href{https://en.wikipedia.org/wiki/Glob_(programming)}{globbing}.
+The files are always built in the order they are listed.}
 
 \item{make}{logical (default: \code{is.null(files)}). When \code{make =
 TRUE}, build any files that have been modified more recently than their
 corresponding HTML files (inspired by
-\href{https://www.gnu.org/software/make/}{GNU Make}). This is the default
-action if no files are specified.}
+\href{https://en.wikipedia.org/wiki/Make_(software)}{Make}). This is the
+default action if no files are specified.}
 
 \item{update}{logical (default: FALSE). Build any files that have been
 committed more recently than their corresponding HTML files (and do not
@@ -36,6 +38,18 @@ setting in \code{_site.yml}.}
 with \code{\link{wflow_view}} after building files. If only one file is
 built, it is opened. If more than one file is built, the main index page is
 opened. Not applicable if no files are built or if \code{dry_run = TRUE}.}
+
+\item{clean_fig_files}{logical (default: FALSE). Delete existing figure files
+for each R Markdown file prior to building it. This ensures that only
+relevant figure files are saved. As you develop an analysis, it is easy to
+generate lots of unused plots due to changes in the number of code chunks
+and their names. However, if you are caching chunks during code
+development, this could cause figures to disappear. Note that
+\code{\link{wflow_publish}} uses \code{clean_fig_files = TRUE} to ensure
+the results can be reproduced.}
+
+\item{delete_cache}{logical (default: FALSE). Delete the cache directory (if
+it exists) for each R Markdown file prior to building it.}
 
 \item{seed}{numeric (default: 12345). The seed to set before building each
 file. Passed to \code{\link{set.seed}}. \bold{DEPRECATED:} The seed set
@@ -79,6 +93,10 @@ An object of class \code{wflow_build}, which is a list with the
    \item \bold{republish}: The input argument \code{republish}
 
    \item \bold{view}: The input argument \code{view}
+
+   \item \bold{clean_fig_files}: The input argument \code{clean_fig_files}
+
+   \item \bold{delete_cache}: The input argument \code{delete_cache}
 
    \item \bold{seed}: The input argument \code{seed}
 
@@ -135,7 +153,7 @@ Under the hood, \code{wflow_build} is a wrapper for
 \examples{
 \dontrun{
 
-# Build any files which have modified
+# Build any files which have been modified
 wflow_build() # equivalent to wflow_build(make = TRUE)
 # Build a single file
 wflow_build("file.Rmd")

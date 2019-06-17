@@ -7,9 +7,14 @@
 ^\.codecov\.yml$
 ^_pkgdown\.yaml$
 ^document\.R$
-^build\.sh$
+\.sh$
 ^LICENSE\.md$
 ^appveyor\.yml$
 tar\.gz$
 ^cran-comments\.md$
 ^\.github$
+^CODE_OF_CONDUCT\.md$
+^Meta$
+^doc$
+^\.circleci$
+^contribute\.R$

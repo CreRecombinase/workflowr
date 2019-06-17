@@ -34,14 +34,15 @@ An object of class \code{wflow_git_config}, which is a list with the
 \description{
 \code{wflow_git_config} configures the global Git settings on the current
 machine. This is a convenience function to run Git commands from the R
-console instead of the Terminal. The same functionality can be acheived by
+console instead of the Terminal. The same functionality can be achieved by
 running \code{git config} in the Terminal.
 }
 \details{
 The main purpose of \code{wflow_git_config} is to set the user.name and
-user.email to use with Git commits (note that these do not need to match the
-name and email you used to register your GitHub account). However, it can
-also handle arbitrary Git settings (see examples below).
+user.email to use with Git commits. Note that these do not need to match the
+name and email you used to register your online account with a Git hosting
+service (e.g. GitHub or GitLab). However, it can also handle arbitrary Git
+settings (see examples below).
 
 There are two main limitations of \code{wflow_git_config} for the sake of
 simplicity. First, \code{wflow_git_config} only affects the global Git

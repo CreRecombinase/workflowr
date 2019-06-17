@@ -29,6 +29,9 @@ articles:
     - "`wflow-03-migrating`"
     - "`wflow-04-how-it-works`"
     - "`wflow-05-faq`"
+    - "`wflow-06-gitlab`"
+    - "`wflow-07-common-code`"
+    - "`wflow-08-deploy`"
 
 reference:
   - title: "Main functions"
@@ -46,11 +49,16 @@ reference:
       - wflow_git_pull
       - wflow_git_push
       - wflow_git_remote
+      - wflow_use_github
+      - wflow_use_gitlab
   - title: "Other functions"
     contents:
       - wflow_html
       - wflow_open
       - wflow_remove
+      - wflow_rename
+      - wflow_rename_proj
       - wflow_site
+      - wflow_toc
       - wflow_update
       - wflow_view

@@ -5,8 +5,8 @@
 \title{Start a new workflowr project}
 \usage{
 wflow_start(directory, name = NULL, git = TRUE, existing = FALSE,
-  overwrite = FALSE, change_wd = TRUE, dry_run = FALSE,
-  user.name = NULL, user.email = NULL)
+  overwrite = FALSE, change_wd = TRUE, disable_remote = FALSE,
+  dry_run = FALSE, user.name = NULL, user.email = NULL)
 }
 \arguments{
 \item{directory}{character. The directory where the workflowr
@@ -21,13 +21,13 @@ project name is automatically determined based on
 \code{"my-wflow-project"}. The project name is displayed on the
 website's navigation bar and in the \code{README.md} file.}
 
-\item{git}{logical (default: \code{TRUE}). Should the workflowr
-files be committed with Git? If \code{git = TRUE} and no existing
-Git repository is detected, \code{wflow_start} will initialize the
-repository and make an initial commit. If a Git repository already
-exists in the chosen directory, \code{wflow_start} any newly
-created or modified files will be commited to the existing
-repository.}
+\item{git}{logical (default: \code{TRUE}). Should the workflowr files be
+committed with Git? If \code{git = TRUE} and no existing Git repository is
+detected, \code{wflow_start} will initialize the repository and make an
+initial commit. If a Git repository already exists in the chosen directory,
+\code{wflow_start} will commit any newly created or modified files to the
+existing repository (also need to set \code{existing = TRUE}). If \code{git
+= FALSE}, \code{wflow_start} will not perform any Git commands.}
 
 \item{existing}{logical (default: \code{FALSE}). Indicate whether
 \code{directory} already exists. This argument is added to prevent
@@ -46,6 +46,17 @@ overwritten or still contain the original content).}
 
 \item{change_wd}{logical (default: \code{TRUE}). Change the working
 directory to the \code{directory}.}
+
+\item{disable_remote}{logical (default: \code{FALSE}). Create a Git
+\href{https://git-scm.com/book/en/v2/Customizing-Git-Git-Hooks}{pre-push
+hook} that prevents pushing to a remote Git repository (i.e. using
+\code{\link{wflow_git_push}}). This is useful for extremely confidential
+projects that cannot be shared via an online Git hosting service (e.g.
+GitHub or GitLab). The hook is saved in the file
+\code{.git/hooks/pre-push}. If you change your mind and want to push the
+repository, you can delete that file. Note that this option is only
+available if \code{git = TRUE}. Note that this is currently only supported
+for Linux and macOS.}
 
 \item{dry_run}{logical (default: \code{FALSE}). When \code{dry_run
 = TRUE}, the actions are previewed without executing them.}
@@ -84,6 +95,8 @@ An object of class \code{wflow_start}, which is a list with the
 
    \item{change_wd}{The input argument \code{change_wd}.}
 
+   \item{disable_remote}{The input argument \code{disable_remote}.}
+
    \item{dry_run}{The input argument \code{dry_run}.}
 
    \item{user.name}{The input argument \code{user.name}.}
@@ -96,7 +109,7 @@ An object of class \code{wflow_start}, which is a list with the
 }
 \description{
 \code{wflow_start} creates a directory with the essential files for
-a workflowr project. The default behaviour is to add these files to
+a workflowr project. The default behavior is to add these files to
 a new directory, but it is also possible to populate an existing
 directory. By default, the working directory is changed to the
 workflowr project directory.

@@ -1,6 +1,10 @@
 # Infrastructure for workflowr projects.
 
-# These templates are used by wflow_start().
+# This file defines templates for use with various workflowr functions. They are
+# inserted with `cat(glue::glue(x), file = fname)`, which removes the starting
+# blank line and leaves a final blank line in the output file.
+
+# wflow_start() ----------------------------------------------------------------
 
 templates <- list(
   .gitignore = '
@@ -24,7 +28,7 @@ if (requireNamespace("workflowr", quietly = TRUE)) {{
   message("Loading .Rprofile for the current workflowr project")
   library("workflowr")
 }} else {{
-  message("workflowr package not installed, please run devtools::install_github(\'jdblischak/workflowr\') to use the workflowr functions")
+  message("workflowr package not installed, please run install.packages(\\"workflowr\\") to use the workflowr functions")
 }}
 
 ',
@@ -41,23 +45,20 @@ knit_root_dir: "."
 ',
     `analysis/_site.yml` = '
 name: "{name}"
-output_dir: "../docs"
+output_dir: ../docs
 navbar:
   title: "{name}"
   left:
-    - text: "Home"
-      href: index.html
-    - text: "About"
-      href: about.html
-    - text: "License"
-      href: license.html
-  right:
-    - icon: fa-github
-      href: https://github.com/jdblischak/workflowr
+  - text: Home
+    href: index.html
+  - text: About
+    href: about.html
+  - text: License
+    href: license.html
 output:
   workflowr::wflow_html:
-    toc: true
-    toc_float: true
+    toc: yes
+    toc_float: yes
     theme: cosmo
     highlight: textmate
 
@@ -69,6 +70,8 @@ site: workflowr::wflow_site
 output:
   workflowr::wflow_html:
     toc: false
+editor_options:
+  chunk_output_type: console
 ---
 
 Welcome to my research website.
@@ -80,6 +83,8 @@ title: "About"
 output:
   workflowr::wflow_html:
     toc: false
+editor_options:
+  chunk_output_type: console
 ---
 
 Describe your project.
@@ -91,6 +96,8 @@ title: "License"
 output:
   workflowr::wflow_html:
     toc: false
+editor_options:
+  chunk_output_type: console
 ---
 
 What license are you using for your code? See [choosealicense.com][choose] for
@@ -154,6 +161,8 @@ StripTrailingWhitespace: Yes
 '
 )
 
+# wflow_html() -----------------------------------------------------------------
+
 # These templates are used by wflow_html() to insert HTML before and after the
 # document body.
 
@@ -167,7 +176,6 @@ div.section {
 </style>
 
 ',
-# Curly brackets need to be duplicated to pass through glue::glue
 footer = '
 <!-- Adjust MathJax settings so that all math formulae are shown using
 TeX fonts only; see
@@ -176,18 +184,40 @@ the presentation more consistent at the cost of the webpage sometimes
 taking slightly longer to load. Note that this only works because the
 footer is added to webpages before the MathJax javascript. -->
 <script type="text/x-mathjax-config">
-  MathJax.Hub.Config({{
-    "HTML-CSS": {{ availableFonts: ["TeX"] }}
-  }});
+  MathJax.Hub.Config({
+    "HTML-CSS": { availableFonts: ["TeX"] }
+  });
 </script>
-
-<hr>
-<p>
-  This reproducible <a href="http://rmarkdown.rstudio.com">R Markdown</a>
-  analysis was created with
-  <a href="https://github.com/jdblischak/workflowr">workflowr</a> {wflow_version}
-</p>
-<hr>
 
 '
 )
+
+extras <- list(
+  disable_remote = '
+#!/bin/bash
+
+# This hook prevents pushing to a remote repository, which is ideal for a
+# project containing confidential data. It was created by wflow_start() with the
+# argument disable_remote = TRUE. If you decide you want to be able to push this
+# repository, delete this file.
+
+echo "This is a confidential project. Do not push the files to a remote server"
+exit 1
+
+'
+)
+
+# wflow_use_gitlab() -----------------------------------------------------------
+
+gitlab <- list(`.gitlab-ci.yml` = '
+pages:
+  stage: deploy
+  script:
+    - echo \'Nothing to do...\'
+  artifacts:
+    paths:
+      - public
+  only:
+    - master
+
+')

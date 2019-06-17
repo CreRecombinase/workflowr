@@ -1,9 +1,10 @@
 #' Push files to remote repository
 #'
 #' \code{wflow_git_push} pushes the local files on your machine to your remote
-#' repository on GitHub. This is a convenience function to run Git commands from
-#' the R console instead of the Terminal. The same functionality can be acheived
-#' by running \code{git push} in the Terminal.
+#' repository on a remote Git hosting service (e.g. GitHub or GitLab). This is a
+#' convenience function to run Git commands from the R console instead of the
+#' Terminal. The same functionality can be achieved by running \code{git push}
+#' in the Terminal.
 #'
 #' \code{wflow_git_push} tries to choose sensible defaults if the user does not
 #' explicitly specify the remote repository and/or the remote branch:
@@ -31,13 +32,20 @@
 #' @param branch character (default: NULL). The name of the branch to push to in
 #'   the remote repository. If \code{NULL}, the name of the current local branch
 #'   is used.
-#' @param username character (default: NULL). GitHub username. The user is
-#'   prompted if necessary.
-#' @param password character (default: NULL). GitHub password. The user is
-#'   prompted if necessary.
+#' @param username character (default: NULL). Username for online Git hosting
+#'   service (e.g. GitHub or GitLab). The user is prompted if necessary.
+#' @param password character (default: NULL). Password for online Git hosting
+#'   service (e.g. GitHub or GitLab). The user is prompted if necessary.
 #' @param force logical (default: FALSE). Force the push to the remote
 #'   repository. Do not use this if you are not 100\% sure of what it is doing.
 #'   Equivalent to: \code{git push -f}
+#' @param set_upstream logical (default: TRUE). Set the current local branch to
+#'   track the remote branch if it isn't already tracking one. This is likely
+#'   what you want. Equivalent to: \code{git push -u remote branch}
+#' @param view logical (default: TRUE). Open the URL to the repository in the
+#'   browser. Ignored if \code{dry_run = TRUE}. Also note that this only works
+#'   if the option \code{browser} is set, which you can check with
+#'   \code{getOption("browser")}.
 #' @param dry_run logical (default: FALSE). Preview the proposed action but do
 #'   not actually push to the remote repository.
 #' @param project character (default: ".") By default the function assumes the
@@ -53,11 +61,19 @@
 #'
 #' \item \bold{branch}: The branch of the remote repository.
 #'
-#' \item \bold{username}: GitHub username.
+#' \item \bold{username}: Username for online Git hosting service (e.g. GitHub
+#' or GitLab).
 #'
 #' \item \bold{force}: The input argument \code{force}.
 #'
+#' \item \bold{set_upstream}: The input argument \code{set_upstream}.
+#'
+#' \item \bold{view}: The input argument \code{view}.
+#'
 #' \item \bold{dry_run}: The input argument \code{dry_run}.
+#'
+#' \item \bold{protocol}: The authentication protocol for the remote repository
+#' (either \code{"https"} or \code{"ssh"}.
 #'
 #' }
 #'
@@ -71,9 +87,9 @@
 #' }
 #'
 #' @export
-wflow_git_push <- function(remote = NULL, branch = NULL,
-                       username = NULL, password = NULL,
-                       force = FALSE, dry_run = FALSE, project = ".") {
+wflow_git_push <- function(remote = NULL, branch = NULL, username = NULL,
+                           password = NULL, force = FALSE, set_upstream = TRUE,
+                           view = TRUE, dry_run = FALSE, project = ".") {
 
   # Check input arguments ------------------------------------------------------
 
@@ -92,13 +108,19 @@ wflow_git_push <- function(remote = NULL, branch = NULL,
   if (!(is.logical(force) && length(force) == 1))
     stop("force must be a one-element logical vector")
 
+  if (!(is.logical(set_upstream) && length(set_upstream) == 1))
+    stop("set_upstream must be a one-element logical vector")
+
+  if (!(is.logical(view) && length(view) == 1))
+    stop("view must be a one-element logical vector")
+
   if (!(is.logical(dry_run) && length(dry_run) == 1))
     stop("dry_run must be a one-element logical vector")
 
   if (!(is.character(project) && length(project) == 1))
     stop("project must be a one-element character vector")
 
-  if (!dir.exists(project)) {
+  if (!fs::dir_exists(project)) {
     stop("project directory does not exist.")
   }
 
@@ -128,20 +150,47 @@ wflow_git_push <- function(remote = NULL, branch = NULL,
   warn_branch_mismatch(remote_branch = branch,
                        local_branch = git2r_slot(git_head, "name"))
 
+  # Determine protocol ---------------------------------------------------------
+
+  protocol <- get_remote_protocol(remote = remote, remote_avail = remote_avail)
+
+  if (protocol == "ssh" && !git2r::libgit2_features()$ssh) {
+    stop(wrap(
+      "You cannot use the SSH protocol for authentication on this machine because
+      git2r/libgit2 was not built with SSH support. You can either switch to
+      using the HTTPS protocol for authentication (see ?wflow_git_remote) or
+      re-install git2r after installing libSSH2."),
+      "\n\nFrom the git2r documentation:\n\n",
+      "To build with SSH support, please install:\n",
+      "  libssh2-1-dev (package on e.g. Debian and Ubuntu)\n",
+      "  libssh2-devel (package on e.g. Fedora, CentOS and RHEL)\n",
+      "  libssh2 (Homebrew package on OS X)"
+      , call. = FALSE)
+  }
+
   # Obtain authentication ------------------------------------------------------
 
-  credentials <- authenticate_git(remote = remote, remote_avail = remote_avail,
+  credentials <- authenticate_git(protocol = protocol,
                                   username = username, password = password,
                                   dry_run = dry_run)
-  if (class(credentials) == "cred_user_pass") {
-    protocol <- "https"
-  } else {
-    protocol <- "ssh"
-  }
 
   # Push! ----------------------------------------------------------------------
 
   if (!dry_run) {
+    # First check for and execute any pre-push hooks. libgit2 does not support
+    # this. Only supported on unix-alike systems.
+    pre_push_file <- file.path(git2r_workdir(r), ".git/hooks/pre-push")
+    pre_push_file_rel <- fs::path_rel(pre_push_file, start = getwd())
+    if (fs::file_exists(pre_push_file) && .Platform$OS.type != "windows") {
+      message(glue::glue("Executing pre-push hook in {pre_push_file_rel}"))
+      hook <- suppressWarnings(system(pre_push_file, intern = TRUE))
+      message(hook)
+      if (attributes(hook)$status != 0) {
+        stop(glue::glue("Execution stopped by {pre_push_file_rel}"),
+             call. = FALSE)
+      }
+    }
+
     tryCatch(git2r::push(r, name = remote,
                          refspec = paste0("refs/heads/", branch),
                          force = force, credentials = credentials),
@@ -181,13 +230,31 @@ wflow_git_push <- function(remote = NULL, branch = NULL,
                stop(wrap(reason), call. = FALSE)
              }
     )
+    # Set upstream tracking branch if it doesn't exist and `set_upstream=TRUE`
+    local_branch_object <- git2r_head(r)
+    if (is.null(git2r::branch_get_upstream(local_branch_object)) && set_upstream) {
+      git2r::branch_set_upstream(branch = local_branch_object,
+                                 name = paste(remote, branch, sep = "/"))
+    }
   }
 
   # Prepare output -------------------------------------------------------------
 
   o <- list(remote = remote, branch = branch, username = username,
-            force = force, dry_run = dry_run)
+            force = force, set_upstream = set_upstream, view = view,
+            dry_run = dry_run, protocol = protocol)
   class(o) <- "wflow_git_push"
+
+  browser <- check_browser()
+  if (view && browser && !dry_run) {
+    remote_url <- remote_avail[remote]
+    # Remove trailing .git
+    remote_url <- stringr::str_replace(remote_url, "\\.git$", "")
+    # If SSH, replace with HTTPS URL
+    remote_url <- stringr::str_replace(remote_url, "^git@(.+):", "https://\\1/")
+    utils::browseURL(remote_url)
+  }
+
   return(o)
 }
 
@@ -198,6 +265,8 @@ print.wflow_git_push <- function(x, ...) {
   cat(wrap(sprintf(
     "Pushing to the branch \"%s\" of the remote repository \"%s\"",
     x$branch, x$remote)), "\n\n")
+
+  cat(glue::glue("Using the {toupper(x$protocol)} protocol\n\n"))
 
   if (x$dry_run) {
     cat("The following Git command would be run:\n\n")

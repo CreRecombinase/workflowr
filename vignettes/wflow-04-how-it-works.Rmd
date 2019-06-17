@@ -47,7 +47,7 @@ repository (so you always know which version of the code produced the results
 contained in that particular file). These options are controlled by the settings
 in `_workflowr.yml`. It also provides a custom site generator `wflow_site()`
 that enables `wflow_html()` to work with R Markdown websites. These options are
-contolled in `analysis/_site.yml`.
+controlled in `analysis/_site.yml`.
 
 [R]: https://cran.r-project.org/
 [knitr]: http://yihui.name/knitr/
@@ -75,6 +75,12 @@ displayed properly on the website. `wflow_publish` automatically commits the
 figures in `docs` corresponding to new or updated R Markdown files, and
 `analysis/figure/` is in the `.gitignore` file to prevent accidentally
 committing duplicate files.
+
+Because workflowr requires the figures to be saved to a specific location in
+order to function properly, it will override any custom setting of the knitr
+option `fig.path` (which controls where figure files are saved) and insert a
+warning into the HTML file to alert the user that their value for `fig.path` was
+ignored.
 
 ## Additional tools
 

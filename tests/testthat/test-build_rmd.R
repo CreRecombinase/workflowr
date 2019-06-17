@@ -7,7 +7,7 @@ tmp_dir <- tempfile("build_rmd-")
 cwd <- getwd()
 on.exit(setwd(cwd))
 on.exit(unlink(tmp_dir, recursive = TRUE, force = TRUE), add = TRUE)
-dir.create(tmp_dir)
+fs::dir_create(tmp_dir)
 tmp_dir <- workflowr:::absolute(tmp_dir)
 
 # Copy test files
@@ -15,8 +15,14 @@ file.copy("files/test-wflow_build/.", tmp_dir, recursive = TRUE)
 
 # Create empty website files to satisfy rmarkdown::render_site (called by
 # build_rmd). HTML files written to _site/
-file.create(file.path(tmp_dir, "_site.yml"))
-file.create(file.path(tmp_dir, "index.Rmd"))
+fs::file_create(file.path(tmp_dir, "index.Rmd"))
+# Note: _site.yml cannot be empty for rmarkdown 1.7 b/c of the behavior of the
+# internal function patch_html_document_options(). This was fixed starting in
+# 1.8. Since workflowr would fail earlier if the file was empty, it doesn't make
+# sense to test it empty.
+# https://github.com/rstudio/rmarkdown/blob/v1.7/R/render_site.R#L425
+yaml::write_yaml(list(output = list(html_document = list())),
+                 file = fs::file_create(file.path(tmp_dir, "_site.yml")))
 
 setwd(tmp_dir)
 
@@ -43,7 +49,7 @@ test_that("An error breaks it", {
 
   expect_error(build_rmd("error.Rmd", seed = 1, quiet = TRUE),
                "There was an error")
-  expect_false(file.exists("_site/error.html"))
+  expect_false(fs::file_exists("_site/error.html"))
 })
 
 test_that("A warning does not cause any problem", {
@@ -51,7 +57,7 @@ test_that("A warning does not cause any problem", {
   skip_on_cran()
 
   expect_silent(build_rmd("warning.Rmd", seed = 1, quiet = TRUE))
-  expect_true(file.exists("_site/warning.html"))
+  expect_true(fs::file_exists("_site/warning.html"))
 })
 
 # Test error handling ----------------------------------------------------------

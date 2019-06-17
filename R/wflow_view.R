@@ -81,10 +81,10 @@ wflow_view <- function(files = NULL, latest = FALSE, dry_run = FALSE,
   if (!is.null(files)) {
     if (!(is.character(files) && length(files) > 0))
       stop("files must be NULL or a character vector of filenames")
-    if (any(dir.exists(files)))
+    if (any(fs::dir_exists(files)))
       stop("files cannot include a path to a directory")
     files <- glob(files)
-    if (!all(file.exists(files)))
+    if (!all(fs::file_exists(files)))
       stop("Not all files exist. Check the paths to the files")
     # Change filepaths to relative paths
     files <- relative(files)
@@ -101,7 +101,7 @@ wflow_view <- function(files = NULL, latest = FALSE, dry_run = FALSE,
     stop("dry_run must be a one element logical vector. You entered: ", dry_run)
   if (!(is.character(project) && length(project) == 1))
     stop("project must be a one element character vector. You entered: ", project)
-  if (!dir.exists(project))
+  if (!fs::dir_exists(project))
     stop("project does not exist. You entered: ", project)
 
   project <- absolute(project)
@@ -150,7 +150,7 @@ wflow_view <- function(files = NULL, latest = FALSE, dry_run = FALSE,
 
   # Check for misssing HTML files ----------------------------------------------
 
-  html_missing <- !file.exists(html)
+  html_missing <- !fs::file_exists(html)
   if (any(html_missing)) {
     warning("The following HTML files are missing:\n",
             paste(html[html_missing], collapse = "\n"))
@@ -167,20 +167,7 @@ wflow_view <- function(files = NULL, latest = FALSE, dry_run = FALSE,
   # If no option is set for browser, browseURL will throw an error. This is
   # disastrous if wflow_view was called from wflow_publish because it resets
   # everything it had done if there is an error.
-
-  browser_opt <- getOption("browser")
-  # This can either be an R function that accepts a URL or a string with the
-  # name of the system program to invoke (e.g. "firefox"). If it is NULL or "",
-  # it won't work.
-  if (is.null(browser_opt)) {
-    browser <- FALSE
-  } else if (is.function(browser_opt)) {
-    browser <- TRUE
-  } else if (nchar(browser_opt) > 0) {
-    browser <- TRUE
-  } else {
-    browser <- FALSE
-  }
+  browser <- check_browser()
 
   # View files -----------------------------------------------------------------
 
@@ -217,8 +204,7 @@ print.wflow_view <- function(x, ...) {
     cat(wrap(
       "wflow_view will not open any files because no option is set for a
       default browser. See the Details section of ?browseURL for setup
-      instructions.\n"
-      ))
+      instructions."), sep = "\n")
 
     return(invisible(x))
   }
