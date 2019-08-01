@@ -165,29 +165,21 @@ get_outdated_files <- function(repo, files, outdir = NULL) {
     stop("Only R Markdown files are accepted.")
   # Corresponding HTML files
   html <- to_html(files, outdir = outdir)
-  # Remove preceding path if necessary. Has to be relative to .git directory.
-  path_to_git <- paste0(git2r_workdir(repo), "/")
-  files <- stringr::str_replace(files, path_to_git, "")
-  html <- stringr::str_replace(html, path_to_git, "")
   # For each source file, determine if it has been committed more recently than
   # its corresponding HTML
   out_of_date <- logical(length = length(files))
 
-  blobs <- git2r::odb_blobs(repo)
-  blobs$fname <- ifelse(blobs$path == "", blobs$name,
-                        file.path(blobs$path, blobs$name))
-
   for (i in seq_along(files)) {
     # Most recent commit time of source and HTML files
-    recent_source <- max(blobs$when[blobs$fname == files[i]])
-    recent_html <- max(blobs$when[blobs$fname == html[i]])
-    if (recent_source >= recent_html) {
+    recent_source <- git2r::commits(repo, n = 1, path = files[i])[[1]]
+    recent_source_time <- as.POSIXct(recent_source$author$when)
+    recent_html <- git2r::commits(repo, n = 1, path = html[i])[[1]]
+    recent_html_time <- as.POSIXct(recent_html$author$when)
+    if (recent_source_time >= recent_html_time) {
       out_of_date[i] <- TRUE
     }
   }
   outdated <- files[out_of_date]
-  # Prepend path to Git repository
-  outdated <- file.path(path_to_git, outdated)
   return(outdated)
 }
 

@@ -75,8 +75,7 @@ create_report <- function(input, output_dir, has_code, opts) {
   # Version history ------------------------------------------------------------
 
   if (uses_git) {
-    blobs <- git2r::odb_blobs(r)
-    versions <- get_versions(input, output_dir, blobs, r, opts$github)
+    versions <- get_versions(input, output_dir, r, opts$github)
     report_versions <- versions
   } else {
     report_versions <-
@@ -152,48 +151,37 @@ create_report <- function(input, output_dir, has_code, opts) {
   return(report)
 }
 
-get_versions <- function(input, output_dir, blobs, r, github) {
+get_versions <- function(input, output_dir, r, github) {
 
-  blobs$fname <- file.path(git2r_workdir(r), blobs$path, blobs$name)
-  blobs$fname <- absolute(blobs$fname)
-  blobs$ext <- tools::file_ext(blobs$fname)
+  rmd <- relative(input, start = git2r_workdir(r))
+  html <- to_html(rmd, outdir = output_dir)
+  html <- relative(html, start = git2r_workdir(r))
 
-  html <- to_html(input, outdir = output_dir)
-  blobs_file <- blobs[blobs$fname %in% c(input, html),
-                      c("ext", "commit", "author", "when")]
-  # Ignore blobs that don't map to commits (caused by `git commit --amend`)
-  git_log <- git2r::commits(r)
-  git_log_sha <- vapply(git_log, function(x) git2r_slot(x, "sha"), character(1))
-  blobs_file <- blobs_file[blobs_file$commit %in% git_log_sha, ]
+  df_versions <- get_versions_df(c(rmd, html), r)
+
   # Exit early if there are no past versions
-  if (nrow(blobs_file) == 0) {
+  if (length(df_versions) == 0) {
     text <-
       "<p>There are no past versions. Publish this analysis with
       <code>wflow_publish()</code> to start tracking its development.</p>"
     return(text)
   }
-  colnames(blobs_file) <- c("File", "Version", "Author", "Date")
-  blobs_file <- blobs_file[order(blobs_file$Date, decreasing = TRUE), ]
-  blobs_file$Date <- as.Date(blobs_file$Date)
-  blobs_file$Message <- vapply(blobs_file$Version,
-                               get_commit_title,
-                               "character(1)",
-                               r = r)
-  workdir_w_trailing_slash <- paste0(git2r_workdir(r), "/")
-  git_html <- stringr::str_replace(html, workdir_w_trailing_slash, "")
-  git_rmd <- stringr::str_replace(input, workdir_w_trailing_slash, "")
+
+  df_versions$File <- ifelse(df_versions$File == rmd, "Rmd", "html")
 
   if (is.na(github)) {
-    blobs_file$Version <- shorten_sha(blobs_file$Version)
+    df_versions$Version <- shorten_sha(df_versions$Version)
   } else {
-    blobs_file$Version <- ifelse(blobs_file$File == "html",
-                                 # HTML preview URL
-                                 create_url_html(github, git_html, blobs_file$Version),
-                                 # R Markdown URL
-                                 sprintf("<a href=\"%s/blob/%s/%s\" target=\"_blank\">%s</a>",
-                                         github, blobs_file$Version, git_rmd,
-                                         shorten_sha(blobs_file$Version)))
+    df_versions$Version <- ifelse(df_versions$File == "html",
+                                  # HTML preview URL
+                                  create_url_html(github, html, df_versions$Version),
+                                  # R Markdown URL
+                                  sprintf("<a href=\"%s/blob/%s/%s\" target=\"_blank\">%s</a>",
+                                          github, df_versions$Version, rmd,
+                                          shorten_sha(df_versions$Version)))
   }
+
+  df_versions <- df_versions[, c("File", "Version", "Author", "Date", "Message")]
 
   template <-
 "
@@ -212,7 +200,7 @@ on the hyperlinks in the table below to view them.</p>
 </tr>
 </thead>
 <tbody>
-{{#blobs_file}}
+{{#df_versions}}
 <tr>
 <td>{{{File}}}</td>
 <td>{{{Version}}}</td>
@@ -220,12 +208,12 @@ on the hyperlinks in the table below to view them.</p>
 <td>{{Date}}</td>
 <td>{{Message}}</td>
 </tr>
-{{/blobs_file}}
+{{/df_versions}}
 </tbody>
 </table>
 </div>
 "
-  data <- list(blobs_file = unname(whisker::rowSplit(blobs_file)))
+  data <- list(df_versions = unname(whisker::rowSplit(df_versions)))
   text <- whisker::whisker.render(template, data)
 
   return(text)
@@ -234,35 +222,24 @@ on the hyperlinks in the table below to view them.</p>
 # Get versions table for figures. Needs to be refactored to share code with
 # get_versions.
 get_versions_fig <- function(fig, r, github) {
-  fig <- absolute(fig)
-  blobs <- git2r::odb_blobs(r)
-  blobs$fname <- ifelse(blobs$path == "", blobs$name,
-                        file.path(blobs$path, blobs$name))
-  blobs$fname_abs <- file.path(git2r_workdir(r), blobs$fname)
-  blobs_file <- blobs[blobs$fname_abs == fig, ]
-  # Ignore blobs that don't map to commits (caused by `git commit --amend`)
-  git_log <- git2r::commits(r)
-  git_log_sha <- vapply(git_log, function(x) git2r_slot(x, "sha"), character(1))
-  blobs_file <- blobs_file[blobs_file$commit %in% git_log_sha, ]
+  fig <- relative(fig, start = git2r_workdir(r))
+
+  df_versions <- get_versions_df(fig, r)
 
   # Exit early if there are no past versions
-  if (nrow(blobs_file) == 0) {
+  if (length(df_versions) == 0) {
     return("")
   }
 
   if (is.na(github)) {
-    blobs_file$commit <- shorten_sha(blobs_file$commit)
+    df_versions$Version <- shorten_sha(df_versions$Version)
   } else {
-    blobs_file$commit <- sprintf("<a href=\"%s/blob/%s/%s\" target=\"_blank\">%s</a>",
-                                 github, blobs_file$commit,
-                                 blobs_file$fname,
-                                 shorten_sha(blobs_file$commit))
+    df_versions$Version <- sprintf("<a href=\"%s/blob/%s/%s\" target=\"_blank\">%s</a>",
+                                   github, df_versions$Version, fig,
+                                   shorten_sha(df_versions$Version))
   }
 
-  blobs_file <- blobs_file[, c("commit", "author", "when")]
-  colnames(blobs_file) <- c("Version", "Author", "Date")
-  blobs_file <- blobs_file[order(blobs_file$Date, decreasing = TRUE), ]
-  blobs_file$Date <- as.Date(blobs_file$Date)
+  df_versions <- df_versions[, c("Version", "Author", "Date")]
 
   fig <- basename(fig)
   id <- paste0("fig-", tools::file_path_sans_ext(basename(fig)))
@@ -295,31 +272,67 @@ get_versions_fig <- function(fig, r, github) {
   </tr>
   </thead>
   <tbody>
-  {{#blobs_file}}
+  {{#df_versions}}
   <tr>
   <td>{{{Version}}}</td>
   <td>{{Author}}</td>
   <td>{{Date}}</td>
   </tr>
-  {{/blobs_file}}
+  {{/df_versions}}
   </tbody>
   </table>
   </div>
   </div>
   "
   data <- list(fig = fig, id = id,
-               blobs_file = unname(whisker::rowSplit(blobs_file)))
+               df_versions = unname(whisker::rowSplit(df_versions)))
   text <- whisker::whisker.render(template, data)
 
   return(text)
 
 }
 
+# Return a data frame of past versions
+#
+# files - paths relative to Git repository
+# r - git_repository
+#
+# If no past versions, returns empty data frame
+get_versions_df <- function(files, r) {
 
-get_commit_title <- function(x, r) {
-  full <- git2r_slot(git2r::lookup(r, x), "message")
-  title <- stringr::str_split(full, "\n")[[1]][1]
-  return(title)
+  if (any(fs::is_absolute_path(files)))
+    stop("File paths must be relative to Git repository at ",
+         git2r_workdir(r))
+
+  commits_path <- list()
+  for (f in files) {
+    commits_f <- git2r::commits(r, path = f)
+    names(commits_f) <- rep(f, length(commits_f))
+    commits_path <- c(commits_path, commits_f)
+  }
+
+  # Exit early if there are no past versions
+  if (length(commits_path) == 0) {
+    return(data.frame())
+  }
+
+  version <- vapply(commits_path, function(x) x$sha, character(1))
+  author <- vapply(commits_path, function(x) x$author$name, character(1))
+  date <- vapply(commits_path, function(x) as.character(x$author$when),
+                 character(1))
+  message <- vapply(commits_path, function(x) x$message, character(1))
+
+  # Only keep the first line of the commit message
+  message <- vapply(message, get_first_line, character(1))
+
+  df_versions <- data.frame(File = names(commits_path), Version = version,
+                            Author = author, Date = as.POSIXct(date),
+                            Message = message, stringsAsFactors = FALSE)
+  df_versions <- df_versions[order(df_versions$Date, decreasing = TRUE), ]
+  df_versions$Date <- as.Date(df_versions$Date)
+  rownames(df_versions) <- seq_len(nrow(df_versions))
+
+  return(df_versions)
 }
 
 check_vc <- function(input, r, s, github) {
