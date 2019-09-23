@@ -1,5 +1,8 @@
 
 create_report <- function(input, output_dir, has_code, opts) {
+  if (opts$suppress_report) {
+    return("")
+  }
 
   input <- absolute(input)
   input_dir <- dirname(input)
@@ -13,7 +16,7 @@ create_report <- function(input, output_dir, has_code, opts) {
     s <- NULL
   }
 
-  # workflowr checks -----------------------------------------------------------
+  # workflowr checks ------------------------------------------------------
   checks <- list()
 
   # Check R Markdown status
@@ -41,15 +44,15 @@ create_report <- function(input, output_dir, has_code, opts) {
   # Check version control
   checks$result_vc <- check_vc(input, r, s, opts$github)
 
-  # Formatting checks ----------------------------------------------------------
+  # Formatting checks -----------------------------------------------------
 
   checks_formatted <- Map(format_check, checks)
   checks_formatted_string <- paste(unlist(checks_formatted), collapse = "\n")
   report_checks <- glue::glue('
-  <div class="panel-group" id="workflowr-checks">
-    {checks_formatted_string}
-  </div>
-  ')
+    <div class="panel-group" id="workflowr-checks">
+      {checks_formatted_string}
+    </div>
+    ')
 
   # Format `knit_root_dir` for display in report.
   knit_root_print <- opts$knit_root_dir
@@ -72,7 +75,7 @@ create_report <- function(input, output_dir, has_code, opts) {
     knit_root_print <- paste0(knit_root_print, "/")
   }
 
-  # Version history ------------------------------------------------------------
+  # Version history --------------------------------------------------------
 
   if (uses_git) {
     versions <- get_versions(input, output_dir, r, opts$github)
@@ -80,11 +83,11 @@ create_report <- function(input, output_dir, has_code, opts) {
   } else {
     report_versions <-
       "<p>This project is not being versioned with Git. To obtain the full
-      reproducibility benefits of using workflowr, please see
-      <code>?wflow_start</code>.</p>"
+        reproducibility benefits of using workflowr, please see
+        <code>?wflow_start</code>.</p>"
   }
 
-  # Return ---------------------------------------------------------------------
+  # Return -----------------------------------------------------------------
 
   checks_passed <- vapply(checks, function(x) x$pass, FUN.VALUE = logical(1))
   if (all(checks_passed)) {
@@ -93,60 +96,60 @@ create_report <- function(input, output_dir, has_code, opts) {
     symbol <- "glyphicon-exclamation-sign text-danger"
   }
   report <- glue::glue('
-  <p>
-  <button type="button" class="btn btn-default btn-workflowr btn-workflowr-report"
-    data-toggle="collapse" data-target="#workflowr-report">
-    <span class="glyphicon glyphicon-list" aria-hidden="true"></span>
-    workflowr
-    <span class="glyphicon {symbol}" aria-hidden="true"></span>
-  </button>
-  </p>
-
-  <div id="workflowr-report" class="collapse">
-  <ul class="nav nav-tabs">
-    <li class="active"><a data-toggle="tab" href="#summary">Summary</a></li>
-    <li><a data-toggle="tab" href="#checks">
-    Checks <span class="glyphicon {symbol}" aria-hidden="true"></span>
-    </a></li>
-    <li><a data-toggle="tab" href="#versions">Past versions</a></li>
-  </ul>
-
-  <div class="tab-content">
-  <div id="summary" class="tab-pane fade in active">
-    <p><strong>Last updated:</strong> {Sys.Date()}</p>
-    <p><strong>Checks:</strong>
-    <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span>
-    {sum(checks_passed)}
-    <span class="glyphicon glyphicon-exclamation-sign text-danger" aria-hidden="true"></span>
-    {sum(!checks_passed)}
-    </p>
-    <p><strong>Knit directory:</strong>
-    <code>{knit_root_print}</code>
-    <span class="glyphicon glyphicon-question-sign" aria-hidden="true"
-    title="This is the local directory in which the code in this file was executed.">
-    </span>
-    </p>
     <p>
-    This reproducible <a href="http://rmarkdown.rstudio.com">R Markdown</a>
-    analysis was created with <a
-    href="https://github.com/jdblischak/workflowr">workflowr</a> (version
-    {packageVersion("workflowr")}). The <em>Checks</em> tab describes the
-    reproducibility checks that were applied when the results were created.
-    The <em>Past versions</em> tab lists the development history.
+    <button type="button" class="btn btn-default btn-workflowr btn-workflowr-report"
+      data-toggle="collapse" data-target="#workflowr-report">
+      <span class="glyphicon glyphicon-list" aria-hidden="true"></span>
+      workflowr
+      <span class="glyphicon {symbol}" aria-hidden="true"></span>
+    </button>
     </p>
-  <hr>
-  </div>
-  <div id="checks" class="tab-pane fade">
-    {report_checks}
-  <hr>
-  </div>
-  <div id="versions" class="tab-pane fade">
-    {report_versions}
-  <hr>
-  </div>
-  </div>
-  </div>
-  ')
+
+    <div id="workflowr-report" class="collapse">
+    <ul class="nav nav-tabs">
+      <li class="active"><a data-toggle="tab" href="#summary">Summary</a></li>
+      <li><a data-toggle="tab" href="#checks">
+      Checks <span class="glyphicon {symbol}" aria-hidden="true"></span>
+      </a></li>
+      <li><a data-toggle="tab" href="#versions">Past versions</a></li>
+    </ul>
+
+    <div class="tab-content">
+    <div id="summary" class="tab-pane fade in active">
+      <p><strong>Last updated:</strong> {Sys.Date()}</p>
+      <p><strong>Checks:</strong>
+      <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span>
+      {sum(checks_passed)}
+      <span class="glyphicon glyphicon-exclamation-sign text-danger" aria-hidden="true"></span>
+      {sum(!checks_passed)}
+      </p>
+      <p><strong>Knit directory:</strong>
+      <code>{knit_root_print}</code>
+      <span class="glyphicon glyphicon-question-sign" aria-hidden="true"
+      title="This is the local directory in which the code in this file was executed.">
+      </span>
+      </p>
+      <p>
+      This reproducible <a href="http://rmarkdown.rstudio.com">R Markdown</a>
+      analysis was created with <a
+      href="https://github.com/jdblischak/workflowr">workflowr</a> (version
+      {packageVersion("workflowr")}). The <em>Checks</em> tab describes the
+      reproducibility checks that were applied when the results were created.
+      The <em>Past versions</em> tab lists the development history.
+      </p>
+    <hr>
+    </div>
+    <div id="checks" class="tab-pane fade">
+      {report_checks}
+    <hr>
+    </div>
+    <div id="versions" class="tab-pane fade">
+      {report_versions}
+    <hr>
+    </div>
+    </div>
+    </div>
+    ')
 
   return(report)
 }
@@ -494,6 +497,21 @@ ensure that the code is always run in an empty environment.</p>
                      "<p>The following objects were defined in the global
                      environment when these results were created:</p>",
                      objects_table)
+
+    if (utils::packageVersion("callr") == "3.3.0") {
+      details <- paste(collapse = "\n",
+                       details,
+                       "<p><strong>SOLUTION:</strong> The R package
+                       <a href=\"https://cran.r-project.org/package=callr\">callr</a>,
+                       which workflowr relies on to isolate the code execution
+                       from the current R session, has a known bug in version
+                       3.3.0. It writes the objects <code>data</code> and
+                       <code>env</code> to the global environment. At best
+                       this only causes the workflowr check to fail, but at
+                       worse could affect your results if your analysis uses
+                       variables with the same names. To avoid this problem,
+                       please update the callr package.</p>")
+    }
   }
 
   return(list(pass = pass, summary = summary, details = details))

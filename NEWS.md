@@ -1,7 +1,23 @@
-# workflowr 1.4.0.9000
+# workflowr 1.4.0.9001
 
 * Require git2r >= 0.26.0 to support internal changes that increase speed and
 robustness of workflowr Git functionality.
+
+* Add option `suppress_report` to suppress the insertion of the workflowr report
+at the top of the HTML file (@kaneplusplus, #168)
+
+* `wflow_start()` adds a `.gitattributes` file that classifies R Markdown files
+as R code for the official GitHub language statistics calculated via
+[linguist][]. The default setting is to ignore R Markdown files.
+
+[linguist]: https://github.com/github/linguist
+
+* Address [callr 3.3.0 bug][callr-bug-3.3.0] that writes objects to the global
+environment, causing the workflowr check of the global environment to fail. The
+failed check now explains that the problem can be fixed by updating the callr
+package.
+
+[callr-bug-3.3.0]: https://github.com/r-lib/callr/commit/9f7665e1081da6f5134b214da694b4461d05659f
 
 # workflowr 1.4.0
 
